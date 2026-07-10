@@ -1,0 +1,12 @@
+{
+    "name": "com.dffrnt.llm-dev-tools.tests",
+    "displayName": "LLM Dev Tools Tests",
+    "version": "0.1.0",
+    "unity": "6000.0",
+    "description": "EditMode tests for AgentBridge and SceneBridge.",
+    "license": "MIT",
+    "author": {
+        "name": "Simon Wittber",
+        "email": "simonwittber@unity3d.com"
+    }
+}

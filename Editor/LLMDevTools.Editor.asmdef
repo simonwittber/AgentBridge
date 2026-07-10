@@ -1,0 +1,16 @@
+{
+    "name": "LLMDevTools.Editor",
+    "rootNamespace": "",
+    "references": ["Unity.TestTools.TestRunner.Api"],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

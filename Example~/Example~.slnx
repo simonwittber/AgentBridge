@@ -1,0 +1,8 @@
+﻿<Solution>
+  <Project Path="UnityEditor.TestRunner.csproj" />
+  <Project Path="Unity.VisualStudio.Editor.csproj" />
+  <Project Path="UnityEngine.TestRunner.csproj" />
+  <Project Path="Unity.Multiplayer.Center.Editor.csproj" />
+  <Project Path="LLMDevTools.Editor.csproj" />
+  <Project Path="Unity.Multiplayer.Center.Common.csproj" />
+</Solution>
