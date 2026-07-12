@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Text.Json.Nodes;
 using UnityEditor;
 using UnityEngine;
@@ -18,7 +19,7 @@ namespace LLMDevTools
         private sealed class ComponentGetCmd : IAgentCommand
         {
             public string    Cmd         => "component_get";
-            public string    Description => "Get all serialized fields of a component on a GameObject.";
+            public string    Description => "Get all serialized fields of a component on a GameObject. Array-typed fields are returned as {\"_items\":[...],\"_total\":N} objects; use _items to read values and check _truncated:true if the array was capped at 200.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",      "string", "", "Hierarchy path of the GameObject"),
@@ -53,7 +54,7 @@ namespace LLMDevTools
         private sealed class ComponentSetCmd : IAgentCommand
         {
             public string    Cmd         => "component_set";
-            public string    Description => "Set a serialized field on a component. Use {\"path\":\"Assets/...\"} for asset refs, {\"scene\":\"Canvas/Obj\"} for scene refs.";
+            public string    Description => "Set a serialized field on a component. Use {\"path\":\"Assets/...\"} for asset refs, {\"scene\":\"Canvas/Obj\"} for scene refs. For array fields pass a JSON array directly (not the {_items,_total} wrapper returned by component_get).";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",      "string", "", "Hierarchy path of the GameObject"),
@@ -91,23 +92,84 @@ namespace LLMDevTools
                     return e;
                 }
                 var so = new SerializedObject(comp);
-                var sp = so.FindProperty(field);
-                if (sp == null)
+                var sp = FindProperty(so, field);
+                if (sp != null)
+                {
+                    if (!SceneBridge.JsonToSp(sp, value))
+                    {
+                        var e = AgentBridge.MakeResponse(uid, Cmd, "error");
+                        e["message"] = $"Failed to set '{field}' ({sp.propertyType}) — see Console for details.";
+                        return e;
+                    }
+                    so.ApplyModifiedProperties();
+                    SceneBridge.MarkDirty(go);
+                    return AgentBridge.MakeResponse(uid, Cmd, "ok");
+                }
+
+                // Fall back to reflection for public C# properties (runtime-only, no serialized backing)
+                var prop = comp.GetType().GetProperty(field, BindingFlags.Public | BindingFlags.Instance);
+                if (prop == null || !prop.CanWrite)
                 {
                     var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = $"Field not found: {field}";
+                    e["message"] = $"Field or property not found: {field}";
                     return e;
                 }
-                if (!SceneBridge.JsonToSp(sp, value))
+                try
+                {
+                    object converted;
+                    if (prop.PropertyType.IsEnum)
+                    {
+                        if (value is System.Text.Json.Nodes.JsonValue jv2 && jv2.TryGetValue<string>(out var s))
+                            converted = Enum.Parse(prop.PropertyType, s, ignoreCase: true);
+                        else
+                            converted = Enum.ToObject(prop.PropertyType, value.GetValue<int>());
+                    }
+                    else
+                    {
+                        converted = Convert.ChangeType(value.GetValue<object>(), prop.PropertyType);
+                    }
+                    prop.SetValue(comp, converted);
+                    SceneBridge.MarkDirty(go);
+                    return AgentBridge.MakeResponse(uid, Cmd, "ok");
+                }
+                catch (Exception ex)
                 {
                     var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = $"Failed to set '{field}' ({sp.propertyType}) — see Console for details.";
+                    e["message"] = $"Failed to set property '{field}': {ex.Message}";
                     return e;
                 }
-                so.ApplyModifiedProperties();
-                SceneBridge.MarkDirty(go);
-                return AgentBridge.MakeResponse(uid, Cmd, "ok");
             }
+        }
+
+        static SerializedProperty FindProperty(SerializedObject so, string field)
+        {
+            var sp = so.FindProperty(field);
+            if (sp != null) return sp;
+
+            sp = so.FindProperty("m_" + field);
+            if (sp != null) return sp;
+
+            // e.g. "clearFlags" → "m_ClearFlags"
+            if (field.Length > 0)
+            {
+                sp = so.FindProperty("m_" + char.ToUpper(field[0]) + field.Substring(1));
+                if (sp != null) return sp;
+            }
+
+            var iter = so.GetIterator();
+            if (iter.NextVisible(true))
+                while (iter.NextVisible(false))
+                {
+                    if (string.Equals(iter.name, field, StringComparison.OrdinalIgnoreCase))
+                        return so.FindProperty(iter.propertyPath);
+                    // strip m_ prefix before comparing (e.g. m_ClearFlags vs clearFlags)
+                    var n = iter.name;
+                    if (n.Length > 2 && n[0] == 'm' && n[1] == '_' &&
+                        string.Equals(n.Substring(2), field, StringComparison.OrdinalIgnoreCase))
+                        return so.FindProperty(iter.propertyPath);
+                }
+
+            return null;
         }
 
         private sealed class ComponentAddCmd : IAgentCommand
@@ -134,7 +196,9 @@ namespace LLMDevTools
                 if (type == null || !typeof(Component).IsAssignableFrom(type))
                 {
                     var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = $"Unknown component type: {p.type}";
+                    e["message"] = SceneBridge.IsAmbiguousTypeName(p.type)
+                        ? $"Ambiguous type name '{p.type}' — use a fully qualified name e.g. 'UnityEngine.UI.Button'"
+                        : $"Unknown component type: {p.type}";
                     return e;
                 }
                 Undo.AddComponent(go, type);

@@ -1,0 +1,84 @@
+using System.IO;
+using System.Text.Json.Nodes;
+using UnityEditor;
+using UnityEngine;
+
+namespace LLMDevTools
+{
+    [InitializeOnLoad]
+    public static class ScreenshotCommand
+    {
+        static ScreenshotCommand()
+        {
+            AgentBridge.Register(new ScreenshotCmd());
+        }
+
+        private sealed class ScreenshotCmd : IAgentCommand
+        {
+            public string    Cmd         => "screenshot";
+            public string    Description => "Render the scene view (or main camera) to a PNG file.";
+            public ArgSpec[] Args        => new[]
+            {
+                new ArgSpec("path",   "string", "", "Output file path for the PNG; defaults to Temp/agent/screenshot.png"),
+                new ArgSpec("width",  "int",    "0", "Render width in pixels; 0 uses the scene view width or 1920"),
+                new ArgSpec("height", "int",    "0", "Render height in pixels; 0 uses the scene view height or 1080"),
+            };
+
+            public JsonObject Execute(string uid, string requestJson)
+            {
+                var p = JsonUtility.FromJson<Params>(requestJson);
+
+                // In play mode use the game camera; fall back to scene view for edit-mode captures.
+                Camera cam = Application.isPlaying ? Camera.main : null;
+                var sv = SceneView.lastActiveSceneView;
+                if (cam == null) cam = sv?.camera;
+                if (cam == null) cam = Camera.main;
+                if (cam == null) cam = UnityEngine.Object.FindAnyObjectByType<Camera>();
+                if (cam == null)
+                {
+                    var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                    err["message"] = "No camera available";
+                    return err;
+                }
+
+                int w = p.width  > 0 ? p.width  : (sv != null ? (int)sv.position.width  : 1920);
+                int h = p.height > 0 ? p.height : (sv != null ? (int)sv.position.height : 1080);
+                if (w <= 0) w = 1920;
+                if (h <= 0) h = 1080;
+
+                string savePath = string.IsNullOrEmpty(p.path) ? "Temp/agent/screenshot.png" : p.path;
+                if (!PathUtils.IsWritable(savePath))
+                {
+                    var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                    err["message"] = $"Path '{savePath}' is outside allowed write locations (Assets/ or Temp/)";
+                    return err;
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(savePath)));
+
+                var rt         = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32);
+                var prevTarget = cam.targetTexture;
+                cam.targetTexture = rt;
+                cam.Render();
+                cam.targetTexture = prevTarget;
+
+                RenderTexture.active = rt;
+                var tex = new Texture2D(w, h, TextureFormat.RGB24, false);
+                tex.ReadPixels(new Rect(0, 0, w, h), 0, 0);
+                tex.Apply();
+                RenderTexture.active = null;
+                UnityEngine.Object.DestroyImmediate(rt);
+
+                try   { File.WriteAllBytes(savePath, tex.EncodeToPNG()); }
+                finally { UnityEngine.Object.DestroyImmediate(tex); }
+
+                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+                resp["path"]   = savePath;
+                resp["width"]  = w;
+                resp["height"] = h;
+                return resp;
+            }
+
+            [System.Serializable] private class Params { public string path = ""; public int width = 0; public int height = 0; }
+        }
+    }
+}

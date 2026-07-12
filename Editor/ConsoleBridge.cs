@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Text.Json.Nodes;
 using UnityEditor;
 using UnityEngine;
@@ -18,8 +19,50 @@ namespace LLMDevTools
 
         static ConsoleBridge()
         {
+            LoadExistingEntries();
             Application.logMessageReceived += OnLog;
             AgentBridge.Register(new ConsoleLogsCmd());
+        }
+
+        private static void LoadExistingEntries()
+        {
+            var logEntriesType = Type.GetType("UnityEditor.LogEntries,UnityEditor");
+            var logEntryType   = Type.GetType("UnityEditor.LogEntry,UnityEditor");
+            if (logEntriesType == null || logEntryType == null) return;
+
+            var startMethod = logEntriesType.GetMethod("StartGettingEntries",   BindingFlags.Static | BindingFlags.Public);
+            var endMethod   = logEntriesType.GetMethod("EndGettingEntries",     BindingFlags.Static | BindingFlags.Public);
+            var getMethod   = logEntriesType.GetMethod("GetEntryInternal",      BindingFlags.Static | BindingFlags.Public);
+            var msgField    = logEntryType.GetField("message",                  BindingFlags.Instance | BindingFlags.Public);
+            var modeField   = logEntryType.GetField("mode",                     BindingFlags.Instance | BindingFlags.Public);
+            if (startMethod == null || endMethod == null || getMethod == null) return;
+
+            int total = (int)startMethod.Invoke(null, null);
+            var entry = Activator.CreateInstance(logEntryType);
+            long now  = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            for (int i = 0; i < total; i++)
+            {
+                getMethod.Invoke(null, new object[] { i, entry });
+                string msg  = msgField?.GetValue(entry) as string ?? "";
+                int    mode = modeField != null ? (int)modeField.GetValue(entry) : 0;
+                _messages[_head]   = msg;
+                _types[_head]      = ModeToType(mode);
+                _timestamps[_head] = now;
+                _head = (_head + 1) % BufferSize;
+                if (_count < BufferSize) _count++;
+            }
+
+            endMethod.Invoke(null, null);
+        }
+
+        private static string ModeToType(int mode)
+        {
+            if ((mode & (1 | 16 | 256 | 2048 | 8192)) != 0) return "error";
+            if ((mode & (128 | 512 | 4096))            != 0) return "warning";
+            if ((mode & 131072)                        != 0) return "exception";
+            if ((mode & (2 | 2097152))                 != 0) return "assert";
+            return "log";
         }
 
         private static void OnLog(string message, string _, LogType type)

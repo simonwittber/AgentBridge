@@ -107,7 +107,9 @@ namespace LLMDevTools
                 if (type == null || !typeof(Component).IsAssignableFrom(type))
                 {
                     var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = $"Unknown component type: {p.component}";
+                    e["message"] = SceneBridge.IsAmbiguousTypeName(p.component)
+                        ? $"Ambiguous type name '{p.component}' — use a fully qualified name e.g. 'UnityEngine.UI.Button'"
+                        : $"Unknown component type: {p.component}";
                     return e;
                 }
 

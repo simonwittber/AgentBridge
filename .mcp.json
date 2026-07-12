@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "unity-example": {
+      "type": "stdio",
+      "command": "Harness~/dffrnt-agent/dffrnt-agent.exe",
+      "args": ["--project", "Example~", "serve"]
+    }
+  }
+}

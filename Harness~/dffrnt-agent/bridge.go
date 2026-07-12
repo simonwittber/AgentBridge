@@ -68,30 +68,70 @@ func send(cfg Config, cmd string, args map[string]any) (map[string]any, error) {
 		return nil, fmt.Errorf("marshal: %w", err)
 	}
 
-	reqPath := filepath.Join(cfg.requestsDir(), uid+".json")
+	reqName := fmt.Sprintf("%020d-%s.json", time.Now().UnixMilli(), uid)
+	reqPath := filepath.Join(cfg.requestsDir(), reqName)
 	if err := os.WriteFile(reqPath, line, 0644); err != nil {
 		return nil, fmt.Errorf("cannot write request: %w", err)
 	}
 
 	respPath := filepath.Join(cfg.responsesDir(), uid+".json")
-	for time.Now().Before(deadline) {
-		data, err := os.ReadFile(respPath)
-		if err == nil {
-			os.Remove(respPath)
-			var resp map[string]any
-			if json.Unmarshal(data, &resp) != nil {
-				return nil, fmt.Errorf("invalid response JSON")
+
+	if asyncCmds[cmd] {
+		for {
+			if resp, ok, err := readResponse(respPath); ok {
+				return resp, err
 			}
-			return resp, nil
+			if age := sessionAgeSeconds(cfg); age > staleThreshold {
+				if resp, ok, err := readResponse(respPath); ok {
+					return resp, err
+				}
+				return nil, fmt.Errorf("Unity session unresponsive (last heartbeat %ds ago)", age)
+			}
+			time.Sleep(pollInterval)
+		}
+	}
+
+	for time.Now().Before(deadline) {
+		if resp, ok, err := readResponse(respPath); ok {
+			return resp, err
 		}
 		time.Sleep(pollInterval)
 	}
 
-	os.Remove(reqPath)
 	return nil, fmt.Errorf("timeout after %.0fs", cfg.Timeout)
 }
 
 const staleThreshold = 30 // seconds
+
+// asyncCmds wait for Unity liveness rather than a fixed clock deadline.
+var asyncCmds = map[string]bool{"compile": true, "refresh": true}
+
+func sessionAgeSeconds(cfg Config) int64 {
+	data, err := os.ReadFile(cfg.sessionPath())
+	if err != nil {
+		return staleThreshold + 1
+	}
+	var s struct {
+		WrittenAt int64 `json:"written_at"`
+	}
+	if json.Unmarshal(data, &s) != nil || s.WrittenAt == 0 {
+		return staleThreshold + 1
+	}
+	return (time.Now().UnixMilli() - s.WrittenAt) / 1000
+}
+
+func readResponse(respPath string) (map[string]any, bool, error) {
+	data, err := os.ReadFile(respPath)
+	if err != nil {
+		return nil, false, nil
+	}
+	os.Remove(respPath)
+	var resp map[string]any
+	if json.Unmarshal(data, &resp) != nil {
+		return nil, true, fmt.Errorf("invalid response JSON")
+	}
+	return resp, true, nil
+}
 
 func checkSession(path string) error {
 	data, err := os.ReadFile(path)

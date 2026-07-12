@@ -93,6 +93,12 @@ namespace LLMDevTools
                                 : !string.IsNullOrEmpty(scene.path) ? scene.path
                                 : $"Assets/Scenes/{(string.IsNullOrEmpty(scene.name) ? "NewScene" : scene.name)}.unity";
 
+                if (!PathUtils.IsUnderAssets(savePath))
+                {
+                    var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                    err["message"] = $"Path '{savePath}' is outside Assets/";
+                    return err;
+                }
                 var dir = System.IO.Path.GetDirectoryName(savePath)?.Replace('\\', '/');
                 if (!string.IsNullOrEmpty(dir) && !System.IO.Directory.Exists(dir))
                     System.IO.Directory.CreateDirectory(dir);

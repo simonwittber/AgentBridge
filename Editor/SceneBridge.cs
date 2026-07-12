@@ -190,13 +190,14 @@ namespace LLMDevTools
 
                     case SerializedPropertyType.Generic when sp.isArray:
                     {
+                        int total = sp.arraySize;
+                        int count = Math.Min(total, 200);
                         var arr = new JsonArray();
-                        int count = Math.Min(sp.arraySize, 100);
                         for (int i = 0; i < count; i++)
                             arr.Add(SpToJson(sp.GetArrayElementAtIndex(i), depth));
-                        if (sp.arraySize > 100)
-                            Debug.LogWarning($"[SceneBridge] SpToJson: '{sp.name}' has {sp.arraySize} elements; showing first 100.");
-                        return arr;
+                        var wrapped = new JsonObject { ["_items"] = arr, ["_total"] = total };
+                        if (total > 200) wrapped["_truncated"] = true;
+                        return wrapped;
                     }
 
                     case SerializedPropertyType.Generic:
@@ -249,8 +250,14 @@ namespace LLMDevTools
                             int idx = Array.IndexOf(sp.enumDisplayNames, enumStr);
                             if (idx < 0) idx = Array.IndexOf(sp.enumNames, enumStr);
                             if (idx >= 0) { sp.enumValueIndex = idx; return true; }
+                            return false; // unknown enum string
                         }
-                        sp.enumValueIndex = value.GetValue<int>(); return true;
+                        {
+                            var intIdx = value.GetValue<int>();
+                            if (intIdx < 0 || intIdx >= sp.enumNames.Length) return false;
+                            sp.enumValueIndex = intIdx;
+                            return true;
+                        }
 
                     case SerializedPropertyType.Color:
                     {
@@ -360,24 +367,33 @@ namespace LLMDevTools
                 BuildTypeCache();
 
             if (_ambiguousNames!.Contains(name))
-                Debug.LogWarning($"[SceneBridge] ResolveType: ambiguous short name '{name}' — use a fully qualified type name.");
+                return null;
 
             return _typeCache!.TryGetValue(name, out var match) ? match : null;
+        }
+
+        internal static bool IsAmbiguousTypeName(string name)
+        {
+            if (_typeCache == null) BuildTypeCache();
+            return _ambiguousNames!.Contains(name);
         }
 
         private static void BuildTypeCache()
         {
             _typeCache      = new Dictionary<string, Type>(StringComparer.Ordinal);
             _ambiguousNames = new HashSet<string>(StringComparer.Ordinal);
+            var shortNameSeen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var tp in TypeCache.GetTypesDerivedFrom<object>())
             {
                 if (tp.FullName != null && !_typeCache.ContainsKey(tp.FullName))
                     _typeCache[tp.FullName] = tp;
                 if (tp.AssemblyQualifiedName != null && !_typeCache.ContainsKey(tp.AssemblyQualifiedName))
                     _typeCache[tp.AssemblyQualifiedName] = tp;
-                if (_typeCache.ContainsKey(tp.Name))
+                // Use a separate seen-set so types without a namespace (FullName==Name) don't
+                // falsely mark themselves as ambiguous via the FullName insertion above.
+                if (!shortNameSeen.Add(tp.Name))
                     _ambiguousNames.Add(tp.Name);
-                else
+                else if (!_typeCache.ContainsKey(tp.Name))
                     _typeCache[tp.Name] = tp;
             }
         }

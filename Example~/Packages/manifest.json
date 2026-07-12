@@ -1,4 +1,7 @@
 {
+  "testables": [
+    "com.dffrnt.llm-dev-tools.tests"
+  ],
   "dependencies": {
     "com.dffrnt.llm-dev-tools": "file:../..",
     "com.dffrnt.llm-dev-tools.tests": "file:../../Tests~/com.dffrnt.llm-dev-tools.tests",

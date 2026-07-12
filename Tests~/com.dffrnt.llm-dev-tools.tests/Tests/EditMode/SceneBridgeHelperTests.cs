@@ -238,9 +238,9 @@ namespace LLMDevTools.Tests
         [Test]
         public void JsonToSp_Array_SpToJson_RoundTrip_StringArray()
         {
-            // AudioSource.m_PlayOnAwake is bool, not array. Use a Camera which has
-            // m_TargetDisplay (int). Instead, verify the Generic array roundtrip
-            // via SpToJson reading back what we wrote with JsonToSp on m_Materials.
+            // Verify SpToJson → JsonToSp round-trip for an object-reference array.
+            // A fresh MeshRenderer starts with 1 null-material slot; read it, write
+            // it back, then read again and confirm the count is preserved.
             var go = Make("[LLM]ArrayRT");
             go.AddComponent<MeshFilter>();
             var mr = go.AddComponent<MeshRenderer>();
@@ -248,16 +248,24 @@ namespace LLMDevTools.Tests
             var sp = so.FindProperty("m_Materials");
             Assume.That(sp?.isArray, Is.True, "m_Materials is not an array");
 
-            // Capture current (may be 1 element), write empty, verify read-back
-            bool ok = SceneBridge.JsonToSp(sp, new JsonArray());
-            so.ApplyModifiedProperties();
-            so.Update();
-            sp = so.FindProperty("m_Materials");
+            // Read initial state — SpToJson returns {_items, _total} for non-empty arrays.
+            var initial = SceneBridge.SpToJson(sp) as JsonObject;
+            Assume.That(initial, Is.Not.Null, "SpToJson returned null for non-empty m_Materials");
+            int initialCount = initial["_total"]?.GetValue<int>() ?? -1;
 
-            var readBack = SceneBridge.SpToJson(sp) as JsonArray;
-            Assert.That(ok,            Is.True);
-            Assert.That(readBack,      Is.Not.Null);
-            Assert.That(readBack.Count, Is.EqualTo(0));
+            // Write the same items back (round-trip).
+            bool ok = SceneBridge.JsonToSp(sp, initial["_items"]?.AsArray() ?? new JsonArray());
+            so.ApplyModifiedProperties();
+
+            Assert.That(ok, Is.True);
+            Assert.That(mr.sharedMaterials.Length, Is.EqualTo(initialCount));
+
+            // Read back via the iterator path (same as component_get) to avoid
+            // stale-property issues after ApplyModifiedProperties.
+            var fields   = SceneBridge.SerializedObjectToJson(mr);
+            var readBack = fields["m_Materials"]?.AsObject();
+            Assert.That(readBack,                            Is.Not.Null);
+            Assert.That(readBack["_total"]?.GetValue<int>(), Is.EqualTo(initialCount));
         }
     }
 }

@@ -45,14 +45,21 @@ namespace LLMDevTools
         private static State  _state;
         private static string _pendingUid;
         private static string _pendingCmd;
-        private static bool   _refreshStarted;
+        private static string _pendingFile;
         private static double _nextPoll;
         private static double _nextHeartbeat;
+        private static bool   _wasPlayingBeforeReload;
 
         private static readonly List<CompilerMessage>              _compileMessages = new();
         private static readonly Dictionary<string, IAgentCommand> _handlers        = new();
 
         public static void Register(IAgentCommand handler) => _handlers[handler.Cmd] = handler;
+
+        public static JsonObject TestInvoke(string cmd, string requestJson = "{}")
+        {
+            if (!_handlers.TryGetValue(cmd, out var handler)) return null;
+            return handler.Execute("test", requestJson);
+        }
 
         // ── Boot ──────────────────────────────────────────────────────────────
 
@@ -64,6 +71,7 @@ namespace LLMDevTools
             Register(new CommandsCmd());
             Register(new CompileCmd());
             Register(new RefreshCmd());
+            Register(new FocusCmd());
 
             try
             {
@@ -83,6 +91,7 @@ namespace LLMDevTools
             CompilationPipeline.assemblyCompilationFinished += OnAssemblyCompilationFinished;
             CompilationPipeline.compilationFinished         += OnCompilationFinished;
             EditorApplication.update                        += OnUpdate;
+            EditorApplication.playModeStateChanged          += OnPlayModeChanged;
 
             WriteSession();
 
@@ -97,25 +106,46 @@ namespace LLMDevTools
                 var files = Directory.GetFiles(RequestsDir, "*.json");
                 if (files.Length == 0) return;
                 Array.Sort(files);
-                var line = File.ReadAllText(files[0]).Trim();
+                var file = files[0];
+                var line = File.ReadAllText(file).Trim();
                 var req  = JsonUtility.FromJson<Request>(line);
                 if (!string.IsNullOrEmpty(req?.uid) && !string.IsNullOrEmpty(req?.cmd))
-                    Dispatch(req.uid, req.cmd, line);
+                    Dispatch(req.uid, req.cmd, line, file);
             }
             catch { }
         }
 
         // ── Callbacks ─────────────────────────────────────────────────────────
 
+        private static void OnPlayModeChanged(PlayModeStateChange change)
+        {
+            if (change == PlayModeStateChange.EnteredPlayMode)
+                _wasPlayingBeforeReload = true;
+            else if (change == PlayModeStateChange.ExitingPlayMode)
+                _wasPlayingBeforeReload = false;
+        }
+
         private static void OnBeforeReload()
         {
             _state = State.Reloading;
-            AppendLog(new JsonObject
+
+            // Delete any stale response for the pending command so it can't be
+            // picked up after replay with mismatched results.
+            if (!string.IsNullOrEmpty(_pendingUid))
+            {
+                var staleResp = Path.Combine(ResponsesDir, _pendingUid + ".json");
+                try { if (File.Exists(staleResp)) File.Delete(staleResp); } catch { }
+            }
+
+            var reloadLog = new JsonObject
             {
                 ["_marker"]     = "domain_reload_start",
                 ["_ts"]         = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 ["pending_cmd"] = _pendingCmd ?? "",
-            });
+            };
+            if (_wasPlayingBeforeReload)
+                reloadLog["note"] = "Play mode was active and has been exited by this reload. Re-enter play mode after the domain_reload_complete marker.";
+            AppendLog(reloadLog);
             WriteSession();
             // Request file stays on disk — replayed automatically after reload.
         }
@@ -162,8 +192,7 @@ namespace LLMDevTools
 
             if (_state == State.Busy && _pendingCmd == "refresh")
             {
-                if (!_refreshStarted) _refreshStarted = true;
-                else if (!EditorApplication.isUpdating)
+                if (!EditorApplication.isUpdating)
                     Respond(MakeResponse(_pendingUid, "refresh", "ok"));
             }
 
@@ -185,23 +214,24 @@ namespace LLMDevTools
                 Array.Sort(files);
                 var file = files[0];
                 var line = File.ReadAllText(file).Trim();
-                if (string.IsNullOrEmpty(line)) { File.Delete(file); return; }
+                if (string.IsNullOrEmpty(line)) { SafeDelete(file); return; }
                 var req = JsonUtility.FromJson<Request>(line);
                 if (!string.IsNullOrEmpty(req?.uid) && !string.IsNullOrEmpty(req?.cmd))
-                    Dispatch(req.uid, req.cmd, line);
+                    Dispatch(req.uid, req.cmd, line, file);
                 else
-                    File.Delete(file);
+                    SafeDelete(file);
             }
             catch (IOException) { }
         }
 
         // ── Dispatch ──────────────────────────────────────────────────────────
 
-        private static void Dispatch(string uid, string cmd, string json)
+        private static void Dispatch(string uid, string cmd, string json, string file)
         {
-            _state      = State.Busy;
-            _pendingUid = uid;
-            _pendingCmd = cmd;
+            _state       = State.Busy;
+            _pendingUid  = uid;
+            _pendingCmd  = cmd;
+            _pendingFile = file;
 
             if (_handlers.TryGetValue(cmd, out var handler))
             {
@@ -234,15 +264,15 @@ namespace LLMDevTools
                 {
                     Directory.CreateDirectory(ResponsesDir);
                     File.WriteAllText(Path.Combine(ResponsesDir, uid + ".json"), resp.ToJsonString());
-                    var reqFile = Path.Combine(RequestsDir, uid + ".json");
-                    if (File.Exists(reqFile)) File.Delete(reqFile);
+                    if (_pendingFile != null && File.Exists(_pendingFile)) SafeDelete(_pendingFile);
                     AppendLog(resp);
                 }
             }
             catch (IOException) { }
-            _pendingUid = null;
-            _pendingCmd = null;
-            _state      = State.Idle;
+            _pendingUid  = null;
+            _pendingCmd  = null;
+            _pendingFile = null;
+            _state       = State.Idle;
             WriteSession();
         }
 
@@ -250,6 +280,20 @@ namespace LLMDevTools
         {
             try { File.AppendAllText(LogPath, entry.ToJsonString() + "\n"); }
             catch { }
+        }
+
+        private static void SafeDelete(string path)
+        {
+            try { File.Delete(path); }
+            catch (Exception ex)
+            {
+                AppendLog(new JsonObject
+                {
+                    ["_marker"] = "delete_failed",
+                    ["path"]    = path,
+                    ["error"]   = ex.Message,
+                });
+            }
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
@@ -361,10 +405,20 @@ namespace LLMDevTools
             public string Description => "Trigger AssetDatabase.Refresh() and wait for completion.";
             public JsonObject Execute(string uid, string requestJson)
             {
-                _refreshStarted = false;
                 FocusUnityWindow();
                 AssetDatabase.Refresh();
                 return null; // async — OnUpdate responds
+            }
+        }
+
+        private sealed class FocusCmd : IAgentCommand
+        {
+            public string Cmd         => "focus";
+            public string Description => "Bring the Unity Editor window to the foreground. Required for scene-view animations and screenshots to update when Unity lacks OS focus.";
+            public JsonObject Execute(string uid, string requestJson)
+            {
+                FocusUnityWindow();
+                return MakeResponse(uid, Cmd, "ok");
             }
         }
     }

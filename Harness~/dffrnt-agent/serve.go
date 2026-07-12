@@ -69,6 +69,7 @@ func registerTools(cfg Config, s *server.MCPServer, cmds []any) {
 		}
 
 		opts := []mcp.ToolOption{mcp.WithDescription(desc)}
+		jsonArgs := map[string]bool{}
 		for _, ra := range rawArgs {
 			argMap, ok := ra.(map[string]any)
 			if !ok {
@@ -90,6 +91,9 @@ func registerTools(cfg Config, s *server.MCPServer, cmds []any) {
 				opts = append(opts, mcp.WithNumber(argName, propOpts...))
 			case "bool":
 				opts = append(opts, mcp.WithBoolean(argName, propOpts...))
+			case "any":
+				opts = append(opts, mcp.WithString(argName, propOpts...))
+				jsonArgs[argName] = true
 			default:
 				opts = append(opts, mcp.WithString(argName, propOpts...))
 			}
@@ -97,8 +101,17 @@ func registerTools(cfg Config, s *server.MCPServer, cmds []any) {
 
 		tool := mcp.NewTool(name, opts...)
 		toolName := name
+		localJSONArgs := jsonArgs
 		s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			args, _ := req.Params.Arguments.(map[string]any)
+			for k := range localJSONArgs {
+				if s, ok := args[k].(string); ok {
+					var v any
+					if json.Unmarshal([]byte(s), &v) == nil {
+						args[k] = v
+					}
+				}
+			}
 			resp, err := send(cfg, toolName, args)
 			if err != nil {
 				return nil, err

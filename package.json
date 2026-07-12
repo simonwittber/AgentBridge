@@ -2,13 +2,13 @@
     "name": "com.dffrnt.llm-dev-tools",
     "displayName": "LLM Dev Tools",
     "version": "0.1.0",
-    "unity": "6000.0",
+    "unity": "6000.6",
     "description": "Unity Editor tooling for AI-assisted development. Provides a file-based command bridge (AgentBridge) that lets external tools drive the Unity Editor — triggering compilation, asset refresh, scene inspection, and custom commands. Includes a Go CLI tool and MCP server for integration with Claude Code and other AI assistants.",
     "keywords": ["editor", "ai", "llm", "agent", "mcp", "tools", "automation"],
     "license": "MIT",
     "author": {
         "name": "Simon Wittber",
-        "email": "simonwittber@unity3d.com"
+        "email": "simonwittber@gmail.com"
     },
     "samples": []
 }

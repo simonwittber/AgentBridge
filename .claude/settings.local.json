@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__unity-example__*",
+      "Bash(go build *)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "unity-example"
+  ]
+}
