@@ -134,7 +134,34 @@ namespace LLMDevTools
                 string cmd = root.TryGetProperty("cmd",    out var c) ? c.GetString() : "?";
                 string sts = root.TryGetProperty("status", out var s) ? s.GetString() : "";
 
-                string label = $"[{timestamp}]  {cmd,-14} {uid[..Math.Min(8, uid.Length)]}  {sts}";
+                string extra = "";
+                if (sts == "error" && root.TryGetProperty("message", out var msgEl))
+                {
+                    string msg = msgEl.GetString() ?? "";
+                    if (msg != "") extra += "  " + msg;
+                }
+                if (root.TryGetProperty("_req_args", out var argsEl) &&
+                    argsEl.ValueKind == JsonValueKind.Object)
+                {
+                    var parts = new List<string>();
+                    foreach (var prop in argsEl.EnumerateObject())
+                    {
+                        string val = prop.Value.ValueKind == JsonValueKind.String
+                            ? prop.Value.GetString() ?? ""
+                            : prop.Value.ToString();
+                        if (!string.IsNullOrEmpty(val))
+                            parts.Add($"{prop.Name}={val}");
+                    }
+                    if (parts.Count > 0)
+                    {
+                        string argsStr = string.Join(" ", parts);
+                        const int maxArgs = 100;
+                        if (argsStr.Length > maxArgs) argsStr = argsStr[..maxArgs] + "…";
+                        extra += "  " + argsStr;
+                    }
+                }
+
+                string label = $"[{timestamp}]  {cmd,-14} {uid[..Math.Min(8, uid.Length)]}  {sts}{extra}";
 
                 Color color = sts == "error" ? new Color(1f, 0.4f, 0.4f)
                             : sts == "ok"    ? new Color(0.6f, 1f, 0.6f)

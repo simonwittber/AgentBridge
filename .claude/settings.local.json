@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "mcp__unity-example__*",
-      "Bash(go build *)"
+      "Bash(go build *)",
+      "Bash(go test *)"
     ]
   },
   "enableAllProjectMcpServers": true,

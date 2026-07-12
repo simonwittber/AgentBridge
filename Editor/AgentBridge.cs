@@ -46,12 +46,29 @@ namespace LLMDevTools
         private static string _pendingUid;
         private static string _pendingCmd;
         private static string _pendingFile;
+        private static string _pendingRequestJson;
         private static double _nextPoll;
         private static double _nextHeartbeat;
         private static bool   _wasPlayingBeforeReload;
 
         private static readonly List<CompilerMessage>              _compileMessages = new();
         private static readonly Dictionary<string, IAgentCommand> _handlers        = new();
+        private static int  _compileErrorCount;
+        private static bool _scriptsDirty;
+
+        internal static void MarkScriptsDirty()  => _scriptsDirty = true;
+        internal static void ClearScriptsDirty() => _scriptsDirty = false;
+
+        private static readonly System.Collections.Generic.HashSet<string> _noWarnCmds =
+            new() { "compile", "refresh", "status", "focus", "commands" };
+
+        internal static void InjectWarnings(JsonObject resp)
+        {
+            if (!_scriptsDirty) return;
+            string cmd = resp["cmd"]?.GetValue<string>() ?? "";
+            if (_noWarnCmds.Contains(cmd)) return;
+            resp["_warning"] = "Scripts were modified since the last compile — call 'compile' before relying on these results.";
+        }
 
         public static void Register(IAgentCommand handler) => _handlers[handler.Cmd] = handler;
 
@@ -88,6 +105,7 @@ namespace LLMDevTools
 
             // Register callbacks before replaying so async completions are caught.
             AssemblyReloadEvents.beforeAssemblyReload       += OnBeforeReload;
+            CompilationPipeline.compilationStarted          += OnCompilationStarted;
             CompilationPipeline.assemblyCompilationFinished += OnAssemblyCompilationFinished;
             CompilationPipeline.compilationFinished         += OnCompilationFinished;
             EditorApplication.update                        += OnUpdate;
@@ -150,8 +168,12 @@ namespace LLMDevTools
             // Request file stays on disk — replayed automatically after reload.
         }
 
+        private static void OnCompilationStarted(object _) { _compileErrorCount = 0; _scriptsDirty = false; }
+
         private static void OnAssemblyCompilationFinished(string _, CompilerMessage[] messages)
         {
+            foreach (var m in messages)
+                if (m.type == CompilerMessageType.Error) _compileErrorCount++;
             if (_pendingCmd == "compile")
                 _compileMessages.AddRange(messages);
         }
@@ -228,10 +250,11 @@ namespace LLMDevTools
 
         private static void Dispatch(string uid, string cmd, string json, string file)
         {
-            _state       = State.Busy;
-            _pendingUid  = uid;
-            _pendingCmd  = cmd;
-            _pendingFile = file;
+            _state              = State.Busy;
+            _pendingUid         = uid;
+            _pendingCmd         = cmd;
+            _pendingFile        = file;
+            _pendingRequestJson = json;
 
             if (_handlers.TryGetValue(cmd, out var handler))
             {
@@ -263,17 +286,37 @@ namespace LLMDevTools
                 if (!string.IsNullOrEmpty(uid))
                 {
                     Directory.CreateDirectory(ResponsesDir);
+                    InjectWarnings(resp);
                     File.WriteAllText(Path.Combine(ResponsesDir, uid + ".json"), resp.ToJsonString());
                     if (_pendingFile != null && File.Exists(_pendingFile)) SafeDelete(_pendingFile);
-                    AppendLog(resp);
+                    AppendLog(BuildLogEntry(resp));
                 }
             }
             catch (IOException) { }
-            _pendingUid  = null;
-            _pendingCmd  = null;
-            _pendingFile = null;
-            _state       = State.Idle;
+            _pendingUid         = null;
+            _pendingCmd         = null;
+            _pendingFile        = null;
+            _pendingRequestJson = null;
+            _state              = State.Idle;
             WriteSession();
+        }
+
+        private static JsonObject BuildLogEntry(JsonObject resp)
+        {
+            if (string.IsNullOrEmpty(_pendingRequestJson)) return resp;
+            try
+            {
+                if (JsonNode.Parse(_pendingRequestJson) is not JsonObject reqObj) return resp;
+                var args = new JsonObject();
+                foreach (var kv in reqObj)
+                    if (kv.Key != "uid" && kv.Key != "cmd")
+                        args[kv.Key] = kv.Value?.DeepClone();
+                if (args.Count == 0) return resp;
+                var entry = JsonNode.Parse(resp.ToJsonString()) as JsonObject ?? resp;
+                entry["_req_args"] = args;
+                return entry;
+            }
+            catch { return resp; }
         }
 
         private static void AppendLog(JsonObject entry)
@@ -315,10 +358,11 @@ namespace LLMDevTools
 
         public static JsonObject MakeResponse(string uid, string cmd, string status) => new()
         {
-            ["uid"]        = uid,
-            ["cmd"]        = cmd,
-            ["status"]     = status,
-            ["session_id"] = _sessionId,
+            ["uid"]            = uid,
+            ["cmd"]            = cmd,
+            ["status"]         = status,
+            ["session_id"]     = _sessionId,
+            ["compile_errors"] = _compileErrorCount,
         };
 
 #if UNITY_EDITOR_WIN

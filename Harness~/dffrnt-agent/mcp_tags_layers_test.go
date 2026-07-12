@@ -24,8 +24,9 @@ func TestMCP_TagsLayers(t *testing.T) {
 
 func TestMCP_TagAdd(t *testing.T) {
 	c := shared
+	name := testName("Tag")
 
-	add := c.callTool(t, "tag_add", map[string]any{"name": "MCPTestTag"})
+	add := c.callTool(t, "tag_add", map[string]any{"name": name})
 	if add["status"] != "ok" {
 		t.Fatalf("tag_add failed: %v", add)
 	}
@@ -34,15 +35,15 @@ func TestMCP_TagAdd(t *testing.T) {
 	tags, _ := tl["tags"].([]any)
 	found := false
 	for _, tag := range tags {
-		if fmt.Sprint(tag) == "MCPTestTag" {
+		if fmt.Sprint(tag) == name {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("MCPTestTag not found in tags after add: %v", tags)
+		t.Errorf("%s not found in tags after add: %v", name, tags)
 	}
 
-	dup := c.callTool(t, "tag_add", map[string]any{"name": "MCPTestTag"})
+	dup := c.callTool(t, "tag_add", map[string]any{"name": name})
 	if dup["status"] != "error" {
 		t.Errorf("expected error for duplicate tag, got %v", dup["status"])
 	}
@@ -50,8 +51,9 @@ func TestMCP_TagAdd(t *testing.T) {
 
 func TestMCP_LayerAdd(t *testing.T) {
 	c := shared
+	name := testName("Layer")
 
-	add := c.callTool(t, "layer_add", map[string]any{"name": "MCPTestLayer"})
+	add := c.callTool(t, "layer_add", map[string]any{"name": name})
 	if add["status"] != "ok" {
 		t.Fatalf("layer_add failed: %v", add)
 	}
@@ -64,11 +66,13 @@ func TestMCP_LayerAdd(t *testing.T) {
 	layers, _ := tl["layers"].([]any)
 	found := false
 	for _, layer := range layers {
-		if fmt.Sprint(layer) == "MCPTestLayer" {
-			found = true
+		if m, ok := layer.(map[string]any); ok {
+			if fmt.Sprint(m["name"]) == name {
+				found = true
+			}
 		}
 	}
 	if !found {
-		t.Errorf("MCPTestLayer not found in layers after add: %v", layers)
+		t.Errorf("%s not found in layers after add: %v", name, layers)
 	}
 }

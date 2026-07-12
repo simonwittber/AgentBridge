@@ -160,9 +160,14 @@ func TestMCP_ReflectMembers_KindMethod(t *testing.T) {
 func TestMCP_ReflectMembers_IncludeInherited(t *testing.T) {
 	c := shared
 
-	base := c.callTool(t, "reflect_members", map[string]any{"type": "UnityEngine.Transform"})
+	// Use UnityEngine.MonoBehaviour which has very few own members, so the
+	// default limit (100) is never hit for own-only, but inherited members from
+	// Behaviour/Component/Object make the inherited count clearly larger.
+	base := c.callTool(t, "reflect_members", map[string]any{
+		"type": "UnityEngine.MonoBehaviour",
+	})
 	inherited := c.callTool(t, "reflect_members", map[string]any{
-		"type":              "UnityEngine.Transform",
+		"type":              "UnityEngine.MonoBehaviour",
 		"include_inherited": true,
 	})
 	baseCount := len(base["members"].([]any))
