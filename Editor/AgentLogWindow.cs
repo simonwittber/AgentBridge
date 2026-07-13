@@ -84,15 +84,34 @@ namespace LLMDevTools
             EditorGUILayout.EndHorizontal();
         }
 
+        private static readonly GUILayoutOption W_TIME   = GUILayout.Width(60);
+        private static readonly GUILayoutOption W_CMD    = GUILayout.Width(160);
+        private static readonly GUILayoutOption W_UID    = GUILayout.Width(65);
+        private static readonly GUILayoutOption W_STATUS = GUILayout.Width(40);
+
         private void DrawLog()
         {
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
+            var style = EditorStyles.miniLabel;
             foreach (var e in _entries)
             {
                 Color prev = GUI.color;
                 GUI.color = e.Color;
-                EditorGUILayout.LabelField(e.Label, EditorStyles.miniLabel);
+                if (e.IsMarker)
+                {
+                    GUILayout.Label(e.Extra, style);
+                }
+                else
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    GUILayout.Label(e.Time,   style, W_TIME);
+                    GUILayout.Label(e.Cmd,    style, W_CMD);
+                    GUILayout.Label(e.Uid,    style, W_UID);
+                    GUILayout.Label(e.Status, style, W_STATUS);
+                    GUILayout.Label(e.Extra,  style);
+                    EditorGUILayout.EndHorizontal();
+                }
                 GUI.color = prev;
             }
 
@@ -120,9 +139,9 @@ namespace LLMDevTools
                     {
                         string pending = root.TryGetProperty("pending_cmd", out var pc) ? pc.GetString() : "";
                         string suffix  = string.IsNullOrEmpty(pending) ? "" : $"  (interrupted: {pending})";
-                        return new LogEntry($"[{time}]  ── domain reload starting{suffix} ──", new Color(1f, 0.5f, 0.1f));
+                        return LogEntry.Marker($"[{time}]  ── domain reload starting{suffix} ──", new Color(1f, 0.5f, 0.1f));
                     }
-                    return new LogEntry($"[{time}]  ── domain reload complete ──────────────", new Color(0.5f, 0.8f, 1f));
+                    return LogEntry.Marker($"[{time}]  ── domain reload complete ──────────────", new Color(0.5f, 0.8f, 1f));
                 }
 
                 long logTs = root.TryGetProperty("_ts", out var logTsEl) ? logTsEl.GetInt64() : 0;
@@ -130,18 +149,17 @@ namespace LLMDevTools
                     ? DateTimeOffset.FromUnixTimeMilliseconds(logTs).LocalDateTime.ToString("HH:mm:ss")
                     : DateTime.Now.ToString("HH:mm:ss");
 
-                string uid = root.TryGetProperty("uid",    out var u) ? u.GetString() : "?";
-                string cmd = root.TryGetProperty("cmd",    out var c) ? c.GetString() : "?";
-                string sts = root.TryGetProperty("status", out var s) ? s.GetString() : "";
+                string uid = root.TryGetProperty("uid",    out var u) ? u.GetString() ?? "?" : "?";
+                string cmd = root.TryGetProperty("cmd",    out var c) ? c.GetString() ?? "?" : "?";
+                string sts = root.TryGetProperty("status", out var s) ? s.GetString() ?? ""  : "";
 
                 string extra = "";
                 if (sts == "error" && root.TryGetProperty("message", out var msgEl))
                 {
                     string msg = msgEl.GetString() ?? "";
-                    if (msg != "") extra += "  " + msg;
+                    if (msg != "") extra = msg;
                 }
-                if (root.TryGetProperty("_req_args", out var argsEl) &&
-                    argsEl.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty("_req_args", out var argsEl) && argsEl.ValueKind == JsonValueKind.Object)
                 {
                     var parts = new List<string>();
                     foreach (var prop in argsEl.EnumerateObject())
@@ -157,29 +175,35 @@ namespace LLMDevTools
                         string argsStr = string.Join(" ", parts);
                         const int maxArgs = 100;
                         if (argsStr.Length > maxArgs) argsStr = argsStr[..maxArgs] + "…";
-                        extra += "  " + argsStr;
+                        extra += (extra.Length > 0 ? "  " : "") + argsStr;
                     }
                 }
-
-                string label = $"[{timestamp}]  {cmd,-14} {uid[..Math.Min(8, uid.Length)]}  {sts}{extra}";
 
                 Color color = sts == "error" ? new Color(1f, 0.4f, 0.4f)
                             : sts == "ok"    ? new Color(0.6f, 1f, 0.6f)
                             :                  Color.white;
 
-                return new LogEntry(label, color);
+                return new LogEntry(timestamp, cmd, uid[..Math.Min(8, uid.Length)], sts, extra, color);
             }
             catch
             {
-                return new LogEntry($"[{DateTime.Now:HH:mm:ss}]  (unparseable) {json[..Math.Min(60, json.Length)]}", Color.gray);
+                return LogEntry.Marker($"(unparseable) {json[..Math.Min(80, json.Length)]}", Color.gray);
             }
         }
 
         private readonly struct LogEntry
         {
-            public readonly string Label;
+            public readonly string Time, Cmd, Uid, Status, Extra;
             public readonly Color  Color;
-            public LogEntry(string label, Color color) { Label = label; Color = color; }
+            public readonly bool   IsMarker;
+
+            public LogEntry(string time, string cmd, string uid, string status, string extra, Color color)
+            { Time = time; Cmd = cmd; Uid = uid; Status = status; Extra = extra; Color = color; IsMarker = false; }
+
+            private LogEntry(string text, Color color, bool marker)
+            { Time = ""; Cmd = ""; Uid = ""; Status = ""; Extra = text; Color = color; IsMarker = marker; }
+
+            public static LogEntry Marker(string text, Color color) => new(text, color, true);
         }
     }
 }

@@ -16,6 +16,7 @@ type Config struct {
 	Project    string
 	Timeout    float64
 	SchemaFile string
+	UnityPath  string
 }
 
 func (c Config) tempDir() string     { return filepath.Join(c.Project, "Temp") }

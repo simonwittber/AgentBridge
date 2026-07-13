@@ -63,6 +63,12 @@ func main() {
 				die("--schema requires a value")
 			}
 			cfg.SchemaFile = os.Args[i]
+		case "--unity":
+			i++
+			if i >= len(os.Args) {
+				die("--unity requires a value")
+			}
+			cfg.UnityPath = os.Args[i]
 		case "--args":
 			i++
 			if i >= len(os.Args) {

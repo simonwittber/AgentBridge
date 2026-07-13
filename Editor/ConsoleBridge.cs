@@ -11,11 +11,17 @@ namespace LLMDevTools
     {
         private const int BufferSize = 200;
 
-        private static readonly string[] _messages   = new string[BufferSize];
-        private static readonly string[] _types      = new string[BufferSize];
-        private static readonly long[]   _timestamps = new long[BufferSize];
+        private static readonly string[] _messages    = new string[BufferSize];
+        private static readonly string[] _stackTraces = new string[BufferSize];
+        private static readonly string[] _types       = new string[BufferSize];
+        private static readonly long[]   _timestamps  = new long[BufferSize];
         private static int _head;
         private static int _count;
+        private static int _errorCount;
+
+        // Count of error/exception log messages since Unity started (or last domain reload).
+        // Exposed so AgentBridge can inject it into every response alongside compile_errors.
+        internal static int ErrorCount => _errorCount;
 
         static ConsoleBridge()
         {
@@ -46,11 +52,14 @@ namespace LLMDevTools
                 getMethod.Invoke(null, new object[] { i, entry });
                 string msg  = msgField?.GetValue(entry) as string ?? "";
                 int    mode = modeField != null ? (int)modeField.GetValue(entry) : 0;
-                _messages[_head]   = msg;
-                _types[_head]      = ModeToType(mode);
-                _timestamps[_head] = now;
+                string t           = ModeToType(mode);
+                _messages[_head]    = msg;
+                _stackTraces[_head] = "";
+                _types[_head]       = t;
+                _timestamps[_head]  = now;
                 _head = (_head + 1) % BufferSize;
                 if (_count < BufferSize) _count++;
+                if (t == "error" || t == "exception") _errorCount++;
             }
 
             endMethod.Invoke(null, null);
@@ -65,13 +74,16 @@ namespace LLMDevTools
             return "log";
         }
 
-        private static void OnLog(string message, string _, LogType type)
+        private static void OnLog(string message, string stackTrace, LogType type)
         {
-            _messages[_head]   = message;
-            _types[_head]      = type.ToString().ToLower();
-            _timestamps[_head] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            _messages[_head]    = message;
+            _stackTraces[_head] = stackTrace;
+            _types[_head]       = (type == LogType.Exception) ? "error" : type.ToString().ToLower();
+            _timestamps[_head]  = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _head = (_head + 1) % BufferSize;
             if (_count < BufferSize) _count++;
+            if (type == LogType.Error || type == LogType.Exception)
+                _errorCount++;
         }
 
         private sealed class ConsoleLogsCmd : IAgentCommand
@@ -81,7 +93,7 @@ namespace LLMDevTools
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("limit", "int",    "50", "Maximum messages to return (max 200)"),
-                new ArgSpec("type",  "string", "",   "Filter: error, warning, log, exception, assert — omit for all"),
+                new ArgSpec("type",  "string", "",   "Filter: error, warning, log, assert — omit for all. Exceptions are stored as error."),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -95,12 +107,15 @@ namespace LLMDevTools
                 {
                     int idx = ((_head - i) % BufferSize + BufferSize) % BufferSize;
                     if (!string.IsNullOrEmpty(p.type) && _types[idx] != p.type) continue;
-                    logs.Add(new JsonObject
+                    var entry = new JsonObject
                     {
                         ["type"]    = _types[idx],
                         ["message"] = _messages[idx],
                         ["time_ms"] = _timestamps[idx],
-                    });
+                    };
+                    if (!string.IsNullOrEmpty(_stackTraces[idx]))
+                        entry["stack_trace"] = _stackTraces[idx];
+                    logs.Add(entry);
                     added++;
                 }
 

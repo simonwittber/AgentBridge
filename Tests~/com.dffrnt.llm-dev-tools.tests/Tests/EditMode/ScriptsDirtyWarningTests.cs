@@ -43,6 +43,7 @@ namespace LLMDevTools.Tests
         [TestCase("status")]
         [TestCase("focus")]
         [TestCase("commands")]
+        [TestCase("asset_write_text")]
         public void Warning_SuppressedForExcludedCommands(string cmd)
         {
             AgentBridge.MarkScriptsDirty();
@@ -53,7 +54,6 @@ namespace LLMDevTools.Tests
 
         [TestCase("object_create")]
         [TestCase("component_get")]
-        [TestCase("asset_write_text")]
         [TestCase("hierarchy")]
         public void Warning_PresentForNonExcludedCommands(string cmd)
         {

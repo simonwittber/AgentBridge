@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using UnityEditor;
 using UnityEditor.Compilation;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 [assembly: InternalsVisibleTo("LLMDevTools.Editor.Tests")]
 
@@ -53,21 +54,38 @@ namespace LLMDevTools
 
         private static readonly List<CompilerMessage>              _compileMessages = new();
         private static readonly Dictionary<string, IAgentCommand> _handlers        = new();
-        private static int  _compileErrorCount;
-        private static bool _scriptsDirty;
+        private static int               _compileErrorCount;
+        private static volatile bool     _scriptsDirty;
+        private static volatile bool     _refreshNeeded;
+        private static bool              _wasUpdating;
+        private static FileSystemWatcher _assetWatcher;
 
-        internal static void MarkScriptsDirty()  => _scriptsDirty = true;
-        internal static void ClearScriptsDirty() => _scriptsDirty = false;
+        internal static void MarkScriptsDirty()   => _scriptsDirty  = true;
+        internal static void ClearScriptsDirty()  => _scriptsDirty  = false;
+        internal static void MarkRefreshNeeded()  => _refreshNeeded = true;
+        internal static void ClearRefreshNeeded() => _refreshNeeded = false;
 
-        private static readonly System.Collections.Generic.HashSet<string> _noWarnCmds =
-            new() { "compile", "refresh", "status", "focus", "commands" };
+        private static readonly HashSet<string> _noWarnCmds = new()
+            { "compile", "refresh", "status", "focus", "commands", "asset_write_text" };
+
+        private static readonly HashSet<string> _noRefreshWarnCmds = new()
+        {
+            "compile", "refresh", "status", "focus", "commands",
+            "asset_write_text", "asset_create", "asset_delete", "asset_move", "asset_copy", "asset_set",
+        };
 
         internal static void InjectWarnings(JsonObject resp)
         {
-            if (!_scriptsDirty) return;
-            string cmd = resp["cmd"]?.GetValue<string>() ?? "";
-            if (_noWarnCmds.Contains(cmd)) return;
-            resp["_warning"] = "Scripts were modified since the last compile — call 'compile' before relying on these results.";
+            string cmd  = resp["cmd"]?.GetValue<string>() ?? "";
+            string warn = "";
+            if (_scriptsDirty  && !_noWarnCmds.Contains(cmd))
+                warn = "Scripts were modified since the last compile — call 'compile' before relying on these results.";
+            if (_refreshNeeded && !_noRefreshWarnCmds.Contains(cmd))
+            {
+                const string r = "Assets have changed since the last refresh — call 'refresh' to sync the AssetDatabase.";
+                warn = warn.Length > 0 ? warn + " " + r : r;
+            }
+            if (warn.Length > 0) resp["_warning"] = warn;
         }
 
         public static void Register(IAgentCommand handler) => _handlers[handler.Cmd] = handler;
@@ -115,6 +133,9 @@ namespace LLMDevTools
 
             // Delay until all [InitializeOnLoad] ctors have run so every handler is registered.
             EditorApplication.delayCall += ReplayPending;
+
+            SetupAssetWatcher();
+            AppDomain.CurrentDomain.DomainUnload += (_, __) => { _assetWatcher?.Dispose(); };
         }
 
         private static void ReplayPending()
@@ -208,6 +229,10 @@ namespace LLMDevTools
             double now = EditorApplication.timeSinceStartup;
             if (now < _nextPoll) return;
             _nextPoll = now + PollInterval;
+
+            bool isUpdating = EditorApplication.isUpdating;
+            if (_wasUpdating && !isUpdating) _refreshNeeded = false;
+            _wasUpdating = isUpdating;
 
             if (_state == State.Idle)
                 ReadNext();
@@ -345,12 +370,19 @@ namespace LLMDevTools
         {
             try
             {
+                var scene = SceneManager.GetActiveScene();
                 File.WriteAllText(SessionPath, new JsonObject
                 {
-                    ["pid"]        = System.Diagnostics.Process.GetCurrentProcess().Id,
-                    ["session_id"] = _sessionId,
-                    ["state"]      = _state == State.Reloading ? "reloading" : _state == State.Busy ? "busy" : "idle",
-                    ["written_at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    ["pid"]            = System.Diagnostics.Process.GetCurrentProcess().Id,
+                    ["session_id"]     = _sessionId,
+                    ["state"]          = _state == State.Reloading ? "reloading" : _state == State.Busy ? "busy" : "idle",
+                    ["active_scene"]   = scene.name,
+                    // scene_dirty: if true, scene_new/scene_open will trigger a save-dialog unless scene_save is called first
+                    ["scene_dirty"]    = scene.isDirty,
+                    ["play_mode"]      = EditorApplication.isPlaying,
+                    ["compile_errors"]  = _compileErrorCount,
+                    ["console_errors"]  = ConsoleBridge.ErrorCount,
+                    ["written_at"]      = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 }.ToJsonString());
             }
             catch (IOException) { }
@@ -358,11 +390,12 @@ namespace LLMDevTools
 
         public static JsonObject MakeResponse(string uid, string cmd, string status) => new()
         {
-            ["uid"]            = uid,
-            ["cmd"]            = cmd,
-            ["status"]         = status,
-            ["session_id"]     = _sessionId,
-            ["compile_errors"] = _compileErrorCount,
+            ["uid"]             = uid,
+            ["cmd"]             = cmd,
+            ["status"]          = status,
+            ["session_id"]      = _sessionId,
+            ["compile_errors"]  = _compileErrorCount,
+            ["console_errors"]  = ConsoleBridge.ErrorCount,
         };
 
 #if UNITY_EDITOR_WIN
@@ -380,6 +413,37 @@ namespace LLMDevTools
         }
 
         [Serializable] private class Request { public string uid; public string cmd; }
+
+        // ── Asset watcher ─────────────────────────────────────────────────────
+
+        private static void SetupAssetWatcher()
+        {
+            try
+            {
+                if (!Directory.Exists("Assets")) return;
+                _assetWatcher = new FileSystemWatcher("Assets")
+                {
+                    IncludeSubdirectories = true,
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime,
+                    EnableRaisingEvents = true,
+                };
+                _assetWatcher.Changed += (_, e) => HandleAssetChange(e.Name);
+                _assetWatcher.Created += (_, e) => HandleAssetChange(e.Name);
+                _assetWatcher.Deleted += (_, e) => HandleAssetChange(e.Name);
+                _assetWatcher.Renamed += (_, e) => HandleAssetChange(e.Name ?? e.OldName);
+            }
+            catch { }
+        }
+
+        private static void HandleAssetChange(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return;
+            if (name.EndsWith(".meta", StringComparison.OrdinalIgnoreCase)) return;
+            _refreshNeeded = true;
+            string ext = Path.GetExtension(name).ToLowerInvariant();
+            if (ext == ".cs" || ext == ".asmdef" || ext == ".asmref")
+                _scriptsDirty = true;
+        }
 
         // ── Built-in commands ─────────────────────────────────────────────────
 

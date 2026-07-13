@@ -15,6 +15,8 @@ import (
 func runServe(cfg Config) {
 	s := server.NewMCPServer("unity-agentbridge", "0.1.0")
 
+	registerProjectTools(cfg, s)
+
 	if err := loadTools(cfg, s); err != nil {
 		log.Printf("warning: %v — serving with no tools until Unity connects", err)
 	}

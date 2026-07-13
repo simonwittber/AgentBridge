@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text.Json.Nodes;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -300,8 +301,26 @@ namespace LLMDevTools
                         }
                         if (o.TryGetPropertyValue("scene", out var sceneNode) && sceneNode != null)
                         {
-                            var go = FindByPath(sceneNode.GetValue<string>());
-                            if (go == null) return false;
+                            var scenePath = sceneNode.GetValue<string>();
+                            var go = FindByPath(scenePath);
+                            if (go == null)
+                            {
+                                Debug.LogWarning($"[SceneBridge] scene path not found: '{scenePath}'");
+                                return false;
+                            }
+                            // If the declared field type is a Component, return that component rather than the GameObject.
+                            var fieldType = GetFieldType(sp);
+                            if (fieldType != null && typeof(Component).IsAssignableFrom(fieldType))
+                            {
+                                var comp = go.GetComponent(fieldType);
+                                if (comp == null)
+                                {
+                                    Debug.LogWarning($"[SceneBridge] '{scenePath}' has no {fieldType.Name} — cannot assign to '{sp.name}'");
+                                    return false;
+                                }
+                                sp.objectReferenceValue = comp;
+                                return true;
+                            }
                             sp.objectReferenceValue = go;
                             return true;
                         }
@@ -396,6 +415,23 @@ namespace LLMDevTools
                 else if (!_typeCache.ContainsKey(tp.Name))
                     _typeCache[tp.Name] = tp;
             }
+        }
+
+        // ── Field-type reflection ─────────────────────────────────────────────
+
+        // Returns the declared C# type of the backing field for a SerializedProperty,
+        // used to resolve scene-path references to the correct component type.
+        private static Type GetFieldType(SerializedProperty sp)
+        {
+            var type = sp.serializedObject.targetObject?.GetType();
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly;
+            while (type != null && type != typeof(object))
+            {
+                var fi = type.GetField(sp.name, flags);
+                if (fi != null) return fi.FieldType;
+                type = type.BaseType;
+            }
+            return null;
         }
 
         // ── Value helpers ─────────────────────────────────────────────────────
