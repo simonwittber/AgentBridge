@@ -6,6 +6,7 @@ TagManager:
   tags:
   - MCPTestTag
   - '[MCP-Tag-1783854368432]'
+  - '[MCP-Tag-1783854512984]'
   layers:
   - Default
   - TransparentFX
@@ -17,7 +18,7 @@ TagManager:
   - 
   - MCPTestLayer
   - '[MCP-Layer-1783854369191]'
-  - 
+  - '[MCP-Layer-1783854513742]'
   - 
   - 
   - 
