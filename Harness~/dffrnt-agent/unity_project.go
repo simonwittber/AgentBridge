@@ -108,18 +108,99 @@ func resolveUnityExe(cfg Config, args map[string]any) (string, error) {
 	return "", fmt.Errorf("Unity executable not found; specify unity_path, set UNITY_EDITOR, or use --unity flag")
 }
 
+// findUnityInstalls returns all Unity Editor installations, trying Unity Hub's
+// editors-v2.json first (works on any OS regardless of install path), then
+// falling back to a directory scan of common install locations.
 func findUnityInstalls() []map[string]any {
+	if installs := findUnityInstallsFromHub(); len(installs) > 0 {
+		return installs
+	}
+	return findUnityInstallsByDirScan()
+}
+
+// hubDataDir returns the platform-specific directory where Unity Hub stores its config.
+func hubDataDir() string {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(configDir, "UnityHub")
+}
+
+type editorsV2File struct {
+	Data []struct {
+		Version  string   `json:"version"`
+		Location []string `json:"location"`
+	} `json:"data"`
+}
+
+func findUnityInstallsFromHub() []map[string]any {
+	hubDir := hubDataDir()
+	if hubDir == "" {
+		return nil
+	}
+
+	for _, name := range []string{"editors-v2.json", "editors.json"} {
+		data, err := os.ReadFile(filepath.Join(hubDir, name))
+		if err != nil {
+			continue
+		}
+		var f editorsV2File
+		if err := json.Unmarshal(data, &f); err != nil || len(f.Data) == 0 {
+			continue
+		}
+
+		seen := map[string]bool{}
+		var results []map[string]any
+		for _, entry := range f.Data {
+			if len(entry.Location) == 0 {
+				continue
+			}
+			exe := filepath.FromSlash(entry.Location[0])
+			if seen[exe] {
+				continue
+			}
+			seen[exe] = true
+			if _, err := os.Stat(exe); err != nil {
+				continue
+			}
+			results = append(results, map[string]any{
+				"version": entry.Version,
+				"path":    exe,
+			})
+		}
+		if len(results) > 0 {
+			sort.Slice(results, func(i, j int) bool {
+				return results[i]["version"].(string) < results[j]["version"].(string)
+			})
+			return results
+		}
+	}
+	return nil
+}
+
+func findUnityInstallsByDirScan() []map[string]any {
 	var bases []string
 	switch runtime.GOOS {
 	case "windows":
-		bases = []string{`C:\Program Files\Unity\Hub\Editor`}
+		bases = []string{
+			`C:\Program Files\Unity\Hub\Editor`,
+			`C:\Program Files\Unity`,
+		}
 	case "darwin":
-		bases = []string{"/Applications/Unity/Hub/Editor"}
+		bases = []string{
+			"/Applications/Unity/Hub/Editor",
+			"/Applications/Unity",
+		}
 	default:
 		home, _ := os.UserHomeDir()
-		bases = []string{filepath.Join(home, "Unity/Hub/Editor")}
+		bases = []string{
+			filepath.Join(home, "Unity/Hub/Editor"),
+			filepath.Join(home, "Unity"),
+		}
 	}
 
+	seen := map[string]bool{}
 	var results []map[string]any
 	for _, base := range bases {
 		entries, err := os.ReadDir(base)
@@ -132,7 +213,11 @@ func findUnityInstalls() []map[string]any {
 			}
 			version := e.Name()
 			exe := unityExePath(base, version)
-			if _, statErr := os.Stat(exe); statErr == nil {
+			if seen[exe] {
+				continue
+			}
+			seen[exe] = true
+			if _, err := os.Stat(exe); err == nil {
 				results = append(results, map[string]any{
 					"version": version,
 					"path":    exe,
@@ -149,10 +234,20 @@ func findUnityInstalls() []map[string]any {
 func unityExePath(base, version string) string {
 	switch runtime.GOOS {
 	case "windows":
-		return filepath.Join(base, version, "Editor", "Unity.exe")
+		// Hub layout: base\version\Editor\Unity.exe
+		if p := filepath.Join(base, version, "Editor", "Unity.exe"); fileExists(p) {
+			return p
+		}
+		// Direct layout: base\version\Unity.exe
+		return filepath.Join(base, version, "Unity.exe")
 	case "darwin":
 		return filepath.Join(base, version, "Unity.app", "Contents", "MacOS", "Unity")
 	default:
 		return filepath.Join(base, version, "Editor", "Unity")
 	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
