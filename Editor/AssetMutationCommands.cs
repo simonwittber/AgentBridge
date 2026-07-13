@@ -108,8 +108,7 @@ namespace LLMDevTools
                 File.WriteAllText(path, content);
                 AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
 
-                string ext = Path.GetExtension(path).ToLowerInvariant();
-                if (ext == ".cs" || ext == ".asmdef" || ext == ".asmref")
+                if (AgentBridge.IsScriptAsset(Path.GetExtension(path).ToLowerInvariant()))
                     AgentBridge.MarkScriptsDirty();
 
                 var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");

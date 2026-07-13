@@ -440,10 +440,12 @@ namespace LLMDevTools
             if (string.IsNullOrEmpty(name)) return;
             if (name.EndsWith(".meta", StringComparison.OrdinalIgnoreCase)) return;
             _refreshNeeded = true;
-            string ext = Path.GetExtension(name).ToLowerInvariant();
-            if (ext == ".cs" || ext == ".asmdef" || ext == ".asmref")
+            if (IsScriptAsset(Path.GetExtension(name).ToLowerInvariant()))
                 _scriptsDirty = true;
         }
+
+        internal static bool IsScriptAsset(string ext) =>
+            ext == ".cs" || ext == ".asmdef" || ext == ".asmref";
 
         // ── Built-in commands ─────────────────────────────────────────────────
 

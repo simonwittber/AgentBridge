@@ -419,8 +419,6 @@ namespace LLMDevTools
 
         // ── Field-type reflection ─────────────────────────────────────────────
 
-        // Returns the declared C# type of the backing field for a SerializedProperty,
-        // used to resolve scene-path references to the correct component type.
         private static Type GetFieldType(SerializedProperty sp)
         {
             var type = sp.serializedObject.targetObject?.GetType();

@@ -59,7 +59,7 @@ namespace LLMDevTools
                 _timestamps[_head]  = now;
                 _head = (_head + 1) % BufferSize;
                 if (_count < BufferSize) _count++;
-                if (t == "error" || t == "exception") _errorCount++;
+                if (t == "error") _errorCount++;
             }
 
             endMethod.Invoke(null, null);
@@ -69,7 +69,7 @@ namespace LLMDevTools
         {
             if ((mode & (1 | 16 | 256 | 2048 | 8192)) != 0) return "error";
             if ((mode & (128 | 512 | 4096))            != 0) return "warning";
-            if ((mode & 131072)                        != 0) return "exception";
+            if ((mode & 131072)                        != 0) return "error";
             if ((mode & (2 | 2097152))                 != 0) return "assert";
             return "log";
         }
