@@ -41,7 +41,7 @@ namespace LLMDevTools
             public string    Description => "Open a scene by asset path.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "",       "Asset path, e.g. Assets/Scenes/Main.unity"),
+                new ArgSpec("path", "string", "",       "Asset path"),
                 new ArgSpec("mode", "string", "Single", "OpenSceneMode: Single or Additive"),
             };
 
@@ -81,7 +81,7 @@ namespace LLMDevTools
             public string    Description => "Save the currently active scene.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Asset path to save to; auto-generated if omitted"),
+                new ArgSpec("path", "string", "", "Asset path; auto-generated if omitted"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

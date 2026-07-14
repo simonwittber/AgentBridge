@@ -93,7 +93,7 @@ namespace LLMDevTools
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("limit", "int",    "50", "Maximum messages to return (max 200)"),
-                new ArgSpec("type",  "string", "",   "Filter: error, warning, log, assert — omit for all. Exceptions are stored as error."),
+                new ArgSpec("type",  "string", "",   "Filter: error, warning, log, assert. Omit for all."),
             };
 
             public JsonObject Execute(string uid, string requestJson)

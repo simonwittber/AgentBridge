@@ -23,8 +23,8 @@ namespace LLMDevTools
             public string    Description => "List the scene GameObject hierarchy as a tree.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("root",  "string", "",  "Start from this object path; omit for all roots"),
-                new ArgSpec("depth", "int",    "3", "Max child levels to include (-1 = unlimited, capped at 50)"),
+                new ArgSpec("root",  "string", "",  "Object path; omit for all roots"),
+                new ArgSpec("depth", "int",    "3", "Max depth; -1 = unlimited (capped at 50)"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -68,7 +68,7 @@ namespace LLMDevTools
             public string    Description => "Find a GameObject by hierarchy path and return its info and component list.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Hierarchy path, e.g. Canvas/Panel/Button"),
+                new ArgSpec("path", "string", "", "Hierarchy path"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -95,7 +95,7 @@ namespace LLMDevTools
             public string    Description => "Find all GameObjects in the scene that have a given component type.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("component",        "string", "",      "Component type name, e.g. Rigidbody, AudioSource"),
+                new ArgSpec("component",        "string", "",      "Component type name"),
                 new ArgSpec("fields",           "bool",   "false", "If true, include all serialised fields for each match"),
                 new ArgSpec("include_inactive", "bool",   "false", "If true, include inactive GameObjects"),
             };

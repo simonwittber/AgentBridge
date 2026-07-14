@@ -69,12 +69,12 @@ namespace LLMDevTools
         private sealed class ReflectTypesCmd : IAgentCommand
         {
             public string    Cmd         => "reflect_types";
-            public string    Description => "Search for public types by name/namespace substring across all loaded assemblies.";
+            public string    Description => "Search for public types across all loaded assemblies.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("query",     "string", "",   "Substring to match against type name"),
-                new ArgSpec("namespace", "string", "",   "Optional namespace substring filter"),
-                new ArgSpec("assembly",  "string", "",   "Optional assembly name substring filter"),
+                new ArgSpec("namespace", "string", "",   "Namespace substring filter"),
+                new ArgSpec("assembly",  "string", "",   "Assembly name filter"),
                 new ArgSpec("limit",     "int",    "50", "Max results (default 50)"),
             };
 

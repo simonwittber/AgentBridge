@@ -18,7 +18,7 @@ namespace LLMDevTools
         private sealed class RunTestsCommand : IAgentCommand
         {
             public string    Cmd         => "run_tests";
-            public string    Description => "Run Unity edit-mode or play-mode tests; returns pass/fail/skip counts and failure details.";
+            public string    Description => "Run Unity edit-mode or play-mode tests.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("mode",     "string", "EditMode", "EditMode or PlayMode"),

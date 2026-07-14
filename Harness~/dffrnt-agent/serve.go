@@ -12,6 +12,19 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+var coreMCPTools = map[string]bool{
+	"status": true, "compile": true, "refresh": true, "focus": true,
+	"commands": true, "console_logs": true,
+	"hierarchy": true, "object_find": true, "objects_find": true,
+	"object_create": true, "object_delete": true, "object_active": true,
+	"object_rename": true, "object_select": true,
+	"component_get": true, "component_set": true, "component_add": true,
+	"scene_info": true, "scene_open": true, "scene_save": true, "scene_new": true,
+	"asset_write_text": true, "asset_create": true, "asset_delete": true,
+	"asset_move": true, "asset_copy": true, "asset_find": true,
+	"undo": true, "redo": true, "play_mode": true, "run_tests": true,
+}
+
 func runServe(cfg Config) {
 	s := server.NewMCPServer("unity-agentbridge", "0.1.0")
 
@@ -20,6 +33,31 @@ func runServe(cfg Config) {
 	if err := loadTools(cfg, s); err != nil {
 		log.Printf("warning: %v — serving with no tools until Unity connects", err)
 	}
+
+	invokeTool := mcp.NewTool("invoke",
+		mcp.WithDescription("Call any Unity command by name. Use 'commands' to list all available commands."),
+		mcp.WithString("cmd", mcp.Description("Command name")),
+		mcp.WithString("args", mcp.Description("JSON object of arguments")),
+	)
+	s.AddTool(invokeTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		toolArgs, _ := req.Params.Arguments.(map[string]any)
+		cmd, _ := toolArgs["cmd"].(string)
+		if cmd == "" {
+			return nil, fmt.Errorf("cmd is required")
+		}
+		args := map[string]any{}
+		if argsStr, _ := toolArgs["args"].(string); argsStr != "" {
+			if err := json.Unmarshal([]byte(argsStr), &args); err != nil {
+				return nil, fmt.Errorf("args: invalid JSON: %w", err)
+			}
+		}
+		resp, err := send(cfg, cmd, args)
+		if err != nil {
+			return nil, err
+		}
+		out, _ := json.MarshalIndent(resp, "", "  ")
+		return mcp.NewToolResultText(string(out)), nil
+	})
 
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
@@ -37,7 +75,7 @@ func loadTools(cfg Config, s *server.MCPServer) error {
 	registerTools(cfg, s, cmds)
 
 	if data, marshalErr := json.Marshal(cmds); marshalErr == nil {
-		os.WriteFile(cfg.SchemaFile, data, 0644)
+		os.WriteFile(cfg.SchemaFile, data, 0644) //nolint:errcheck
 	}
 
 	return nil
@@ -64,11 +102,11 @@ func registerTools(cfg Config, s *server.MCPServer, cmds []any) {
 			continue
 		}
 		name, _ := cmdMap["cmd"].(string)
-		desc, _ := cmdMap["description"].(string)
-		rawArgs, _ := cmdMap["args"].([]any)
-		if name == "" {
+		if name == "" || !coreMCPTools[name] {
 			continue
 		}
+		desc, _ := cmdMap["description"].(string)
+		rawArgs, _ := cmdMap["args"].([]any)
 
 		opts := []mcp.ToolOption{mcp.WithDescription(desc)}
 		jsonArgs := map[string]bool{}

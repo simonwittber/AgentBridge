@@ -19,7 +19,7 @@ namespace LLMDevTools
             public string    Description => "Invoke a Unity menu item by its full path string.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Full menu path, e.g. Tools/MyTool/DoSomething"),
+                new ArgSpec("path", "string", "", "Full menu path"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

@@ -118,10 +118,10 @@ namespace LLMDevTools
         private sealed class PackageAddCmd : IAgentCommand
         {
             public string    Cmd         => "package_add";
-            public string    Description => "Add or update a Unity package by identifier (e.g. com.unity.addressables or com.unity.addressables@1.19.0).";
+            public string    Description => "Add or update a Unity package by identifier.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("identifier", "string", "", "Package identifier, e.g. com.unity.addressables@1.19.0"),
+                new ArgSpec("identifier", "string", "", "Package identifier"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -145,10 +145,10 @@ namespace LLMDevTools
         private sealed class PackageSearchCmd : IAgentCommand
         {
             public string    Cmd         => "package_search";
-            public string    Description => "Search the Unity Package Registry for packages matching a query. Returns name, latest version, and all available versions.";
+            public string    Description => "Search the Unity Package Registry.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("query", "string", "", "Search term, e.g. ugui or com.unity.ugui"),
+                new ArgSpec("query", "string", "", "Search term"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -172,10 +172,10 @@ namespace LLMDevTools
         private sealed class PackageRemoveCmd : IAgentCommand
         {
             public string    Cmd         => "package_remove";
-            public string    Description => "Remove an installed Unity package by name (e.g. com.unity.addressables).";
+            public string    Description => "Remove an installed Unity package.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("name", "string", "", "Package name, e.g. com.unity.addressables"),
+                new ArgSpec("name", "string", "", "Package name"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

@@ -20,7 +20,7 @@ namespace LLMDevTools
             public string    Description => "Get all shader properties of a material asset.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Asset path to the .mat file, e.g. Assets/Materials/MyMat.mat"),
+                new ArgSpec("path", "string", "", "Asset path to the .mat file"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -67,8 +67,8 @@ namespace LLMDevTools
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",     "string", "", "Asset path to the .mat file"),
-                new ArgSpec("property", "string", "", "Shader property name, e.g. _Color, _Metallic"),
-                new ArgSpec("value",    "any",    "", "float | {r,g,b,a} | {x,y,z,w} | {\"path\":\"Assets/...\"} for Texture | null"),
+                new ArgSpec("property", "string", "", "Shader property name"),
+                new ArgSpec("value",    "any",    "", "float, {r,g,b,a}, {x,y,z,w}, {\"path\":\"Assets/...\"} for texture, or null"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

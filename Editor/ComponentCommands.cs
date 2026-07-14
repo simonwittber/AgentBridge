@@ -19,11 +19,11 @@ namespace LLMDevTools
         private sealed class ComponentGetCmd : IAgentCommand
         {
             public string    Cmd         => "component_get";
-            public string    Description => "Get all serialized fields of a component on a GameObject. Array-typed fields are returned as {\"_items\":[...],\"_total\":N} objects; use _items to read values and check _truncated:true if the array was capped at 200.";
+            public string    Description => "Get serialized fields of a component. Arrays return {_items, _total}; check _truncated.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",      "string", "", "Hierarchy path of the GameObject"),
-                new ArgSpec("component", "string", "", "Component type name, e.g. Transform, Image, AudioSource"),
+                new ArgSpec("component", "string", "", "Component type name"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -54,13 +54,13 @@ namespace LLMDevTools
         private sealed class ComponentSetCmd : IAgentCommand
         {
             public string    Cmd         => "component_set";
-            public string    Description => "Set a serialized field on a component. Use {\"path\":\"Assets/...\"} for asset refs, {\"scene\":\"Canvas/Obj\"} for scene refs. For array fields pass a JSON array directly (not the {_items,_total} wrapper returned by component_get).";
+            public string    Description => "Set a serialized field. Asset refs: {\"path\":\"Assets/...\"}, scene refs: {\"scene\":\"Obj\"}. Arrays: pass a plain JSON array.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",      "string", "", "Hierarchy path of the GameObject"),
                 new ArgSpec("component", "string", "", "Component type name"),
-                new ArgSpec("field",     "string", "", "Serialized property name, e.g. m_LocalPosition or interactable"),
-                new ArgSpec("value",     "any",    "", "New value: number, bool, string, or JSON object"),
+                new ArgSpec("field",     "string", "", "Serialized property name"),
+                new ArgSpec("value",     "any",    "", "Value: number, bool, string, or JSON object"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -179,7 +179,7 @@ namespace LLMDevTools
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "", "Hierarchy path of the GameObject"),
-                new ArgSpec("type", "string", "", "Component type name, e.g. AudioSource, Rigidbody"),
+                new ArgSpec("type", "string", "", "Component type name"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

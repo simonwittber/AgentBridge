@@ -20,7 +20,7 @@ namespace LLMDevTools
             public string    Description => "Open a prefab asset for editing in prefab stage.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Asset path, e.g. Assets/Prefabs/MyButton.prefab"),
+                new ArgSpec("path", "string", "", "Asset path"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

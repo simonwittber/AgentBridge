@@ -23,7 +23,7 @@ namespace LLMDevTools
             public string    Description => "Create a new folder or material asset at the given path.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Asset path to create (e.g. Assets/MyFolder)"),
+                new ArgSpec("path", "string", "", "Asset path to create"),
                 new ArgSpec("type", "string", "folder", "Asset type: folder or material"),
             };
 
@@ -72,7 +72,7 @@ namespace LLMDevTools
         private sealed class AssetWriteTextCmd : IAgentCommand
         {
             public string    Cmd         => "asset_write_text";
-            public string    Description => "Write a text file (script, shader, JSON, etc.) under Assets/ and reimport it. Creates parent folders automatically.";
+            public string    Description => "Write a text file under Assets/ and reimport. Creates parent folders automatically.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",    "string", "", "Asset path, e.g. Assets/Scripts/Foo.cs or Assets/Shaders/Bar.shader"),

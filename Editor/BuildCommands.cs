@@ -23,8 +23,8 @@ namespace LLMDevTools
             {
                 new ArgSpec("target",      "string", "StandaloneWindows64", "Build target platform name"),
                 new ArgSpec("output",      "string", "",                    "Output path for the build"),
-                new ArgSpec("scenes",      "string", "",                    "Comma-separated scene paths; omit to use enabled build scenes"),
-                new ArgSpec("development", "bool",   "false",               "Whether to build a development build"),
+                new ArgSpec("scenes",      "string", "",                    "Comma-separated scene paths; omit for build settings"),
+                new ArgSpec("development", "bool",   "false",               "Enable development mode"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

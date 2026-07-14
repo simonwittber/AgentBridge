@@ -19,9 +19,9 @@ namespace LLMDevTools
             public string    Description => "Render the scene view (or main camera) to a PNG file.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path",   "string", "", "Output file path for the PNG; defaults to Temp/agent/screenshot.png"),
-                new ArgSpec("width",  "int",    "0", "Render width in pixels; 0 uses the scene view width or 1920"),
-                new ArgSpec("height", "int",    "0", "Render height in pixels; 0 uses the scene view height or 1080"),
+                new ArgSpec("path",   "string", "", "PNG output path; defaults to Temp/agent/screenshot.png"),
+                new ArgSpec("width",  "int",    "0", "Width; 0 uses scene view or 1920"),
+                new ArgSpec("height", "int",    "0", "Height; 0 uses scene view or 1080"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

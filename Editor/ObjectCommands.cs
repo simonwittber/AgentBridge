@@ -26,7 +26,7 @@ namespace LLMDevTools
             {
                 new ArgSpec("name",      "string", "GameObject", "Name of the new object"),
                 new ArgSpec("parent",    "string", "",           "Parent hierarchy path; omit for scene root"),
-                new ArgSpec("primitive", "string", "",           "Primitive type: Cube, Sphere, Plane, Cylinder, Capsule, Quad"),
+                new ArgSpec("primitive", "string", "",           "Primitive: Cube, Sphere, Plane, Cylinder, Capsule, Quad"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -68,7 +68,7 @@ namespace LLMDevTools
             public string    Description => "Delete a GameObject by hierarchy path.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Hierarchy path of the object to delete"),
+                new ArgSpec("path", "string", "", "Hierarchy path"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -123,7 +123,7 @@ namespace LLMDevTools
             public string    Description => "Rename a GameObject.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Hierarchy path of the object to rename"),
+                new ArgSpec("path", "string", "", "Hierarchy path"),
                 new ArgSpec("name", "string", "", "New name"),
             };
 
@@ -161,7 +161,7 @@ namespace LLMDevTools
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",  "string", "", "Single hierarchy path to select"),
-                new ArgSpec("paths", "string", "", "Comma-separated hierarchy paths to select multiple objects"),
+                new ArgSpec("paths", "string", "", "Comma-separated hierarchy paths"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
