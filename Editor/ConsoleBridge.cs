@@ -89,11 +89,11 @@ namespace LLMDevTools
         private sealed class ConsoleLogsCmd : IAgentCommand
         {
             public string    Cmd         => "console_logs";
-            public string    Description => "Return recent Unity console messages (newest first) from the in-editor ring buffer.";
+            public string    Description => "Return recent Unity console messages, newest first.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("limit", "int",    "50", "Maximum messages to return (max 200)"),
-                new ArgSpec("type",  "string", "",   "Filter: error, warning, log, assert. Omit for all."),
+                new ArgSpec("limit", "int",    "50", ""),
+                new ArgSpec("type",  "string", "",   "error, warning, log, or assert"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

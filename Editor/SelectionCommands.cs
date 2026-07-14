@@ -15,7 +15,7 @@ namespace LLMDevTools
         private sealed class SelectionGetCmd : IAgentCommand
         {
             public string    Cmd         => "selection_get";
-            public string    Description => "Return currently selected GameObjects and assets.";
+            public string    Description => "";
             public ArgSpec[] Args        => new ArgSpec[0];
 
             public JsonObject Execute(string uid, string requestJson)

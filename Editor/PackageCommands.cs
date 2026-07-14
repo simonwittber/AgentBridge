@@ -121,7 +121,7 @@ namespace LLMDevTools
             public string    Description => "Add or update a Unity package by identifier.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("identifier", "string", "", "Package identifier"),
+                new ArgSpec("identifier", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -148,7 +148,7 @@ namespace LLMDevTools
             public string    Description => "Search the Unity Package Registry.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("query", "string", "", "Search term"),
+                new ArgSpec("query", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -172,10 +172,10 @@ namespace LLMDevTools
         private sealed class PackageRemoveCmd : IAgentCommand
         {
             public string    Cmd         => "package_remove";
-            public string    Description => "Remove an installed Unity package.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("name", "string", "", "Package name"),
+                new ArgSpec("name", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)

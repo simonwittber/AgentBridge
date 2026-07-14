@@ -22,8 +22,8 @@ namespace LLMDevTools
             public string    Description => "Get serialized fields of a component. Arrays return {_items, _total}; check _truncated.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path",      "string", "", "Hierarchy path of the GameObject"),
-                new ArgSpec("component", "string", "", "Component type name"),
+                new ArgSpec("path",      "string", "", ""),
+                new ArgSpec("component", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -57,10 +57,10 @@ namespace LLMDevTools
             public string    Description => "Set a serialized field. Asset refs: {\"path\":\"Assets/...\"}, scene refs: {\"scene\":\"Obj\"}. Arrays: pass a plain JSON array.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path",      "string", "", "Hierarchy path of the GameObject"),
-                new ArgSpec("component", "string", "", "Component type name"),
+                new ArgSpec("path",      "string", "", ""),
+                new ArgSpec("component", "string", "", ""),
                 new ArgSpec("field",     "string", "", "Serialized property name"),
-                new ArgSpec("value",     "any",    "", "Value: number, bool, string, or JSON object"),
+                new ArgSpec("value",     "any",    "", "number, bool, string, or JSON object"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -178,8 +178,8 @@ namespace LLMDevTools
             public string    Description => "Add a component to a GameObject by type name.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Hierarchy path of the GameObject"),
-                new ArgSpec("type", "string", "", "Component type name"),
+                new ArgSpec("path", "string", "", ""),
+                new ArgSpec("type", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)

@@ -108,7 +108,10 @@ func registerTools(cfg Config, s *server.MCPServer, cmds []any) {
 		desc, _ := cmdMap["description"].(string)
 		rawArgs, _ := cmdMap["args"].([]any)
 
-		opts := []mcp.ToolOption{mcp.WithDescription(desc)}
+		var opts []mcp.ToolOption
+		if desc != "" {
+			opts = append(opts, mcp.WithDescription(desc))
+		}
 		jsonArgs := map[string]bool{}
 		for _, ra := range rawArgs {
 			argMap, ok := ra.(map[string]any)

@@ -21,7 +21,7 @@ namespace LLMDevTools
             public string    Description => "Get GUID and serialized importer settings for an asset.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Asset path"),
+                new ArgSpec("path", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -51,9 +51,9 @@ namespace LLMDevTools
             public string    Description => "Set an importer field on an asset and reimport it.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path",  "string", "", "Asset path"),
+                new ArgSpec("path",  "string", "", ""),
                 new ArgSpec("field", "string", "", "Serialized importer property name"),
-                new ArgSpec("value", "any",    "", "Value: number, bool, string, or JSON object"),
+                new ArgSpec("value", "any",    "", "number, bool, string, or JSON object"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -102,8 +102,8 @@ namespace LLMDevTools
             public string    Description => "Find project assets using an AssetDatabase search filter.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("filter", "string", "",   "AssetDatabase filter (t:Type, l:Label)"),
-                new ArgSpec("limit",  "int",    "50", "Maximum results to return"),
+                new ArgSpec("filter", "string", "",   "t:Type, l:Label"),
+                new ArgSpec("limit",  "int",    "50", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)

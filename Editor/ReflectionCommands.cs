@@ -37,7 +37,7 @@ namespace LLMDevTools
         private sealed class ReflectAssembliesCmd : IAgentCommand
         {
             public string    Cmd         => "reflect_assemblies";
-            public string    Description => "List loaded assemblies.";
+            public string    Description => "";
             public ArgSpec[] Args        => new ArgSpec[0];
 
             public JsonObject Execute(string uid, string requestJson)
@@ -72,10 +72,10 @@ namespace LLMDevTools
             public string    Description => "Search for public types across all loaded assemblies.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("query",     "string", "",   "Substring to match against type name"),
+                new ArgSpec("query",     "string", "",   "Substring match on type name"),
                 new ArgSpec("namespace", "string", "",   "Namespace substring filter"),
-                new ArgSpec("assembly",  "string", "",   "Assembly name filter"),
-                new ArgSpec("limit",     "int",    "50", "Max results (default 50)"),
+                new ArgSpec("assembly",  "string", "",   ""),
+                new ArgSpec("limit",     "int",    "50", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -137,12 +137,12 @@ namespace LLMDevTools
             public string    Description => "List public members of a named type.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("type",              "string", "",      "Full or partial type name (required)"),
-                new ArgSpec("kind",              "string", "all",   "Member kind filter: all, method, property, field"),
-                new ArgSpec("static_only",       "bool",   "false", "Only return static members"),
-                new ArgSpec("instance_only",     "bool",   "false", "Only return instance members"),
-                new ArgSpec("include_inherited", "bool",   "false", "Include members declared on base types"),
-                new ArgSpec("limit",             "int",    "100",   "Max results (default 100)"),
+                new ArgSpec("type",              "string", "",      "Full or partial type name"),
+                new ArgSpec("kind",              "string", "all",   "all, method, property, or field"),
+                new ArgSpec("static_only",       "bool",   "false", ""),
+                new ArgSpec("instance_only",     "bool",   "false", ""),
+                new ArgSpec("include_inherited", "bool",   "false", ""),
+                new ArgSpec("limit",             "int",    "100",   ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)

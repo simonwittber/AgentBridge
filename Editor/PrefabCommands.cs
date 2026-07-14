@@ -20,7 +20,7 @@ namespace LLMDevTools
             public string    Description => "Open a prefab asset for editing in prefab stage.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Asset path"),
+                new ArgSpec("path", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -43,7 +43,7 @@ namespace LLMDevTools
         private sealed class PrefabSaveCmd : IAgentCommand
         {
             public string Cmd         => "prefab_save";
-            public string Description => "Save changes to the currently open prefab and exit prefab stage.";
+            public string Description => "";
 
             public JsonObject Execute(string uid, string requestJson)
             {

@@ -15,7 +15,7 @@ namespace LLMDevTools
         private sealed class UndoCmd : IAgentCommand
         {
             public string    Cmd         => "undo";
-            public string    Description => "Perform an undo operation in the editor.";
+            public string    Description => "";
             public ArgSpec[] Args        => new ArgSpec[0];
 
             public JsonObject Execute(string uid, string requestJson)
@@ -28,7 +28,7 @@ namespace LLMDevTools
         private sealed class RedoCmd : IAgentCommand
         {
             public string    Cmd         => "redo";
-            public string    Description => "Perform a redo operation in the editor.";
+            public string    Description => "";
             public ArgSpec[] Args        => new ArgSpec[0];
 
             public JsonObject Execute(string uid, string requestJson)

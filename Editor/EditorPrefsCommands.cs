@@ -19,8 +19,8 @@ namespace LLMDevTools
             public string    Description => "Get a value from EditorPrefs.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("key",  "string", "",       "EditorPrefs key"),
-                new ArgSpec("type", "string", "string", "Value type: string, int, float, bool"),
+                new ArgSpec("key",  "string", "",       ""),
+                new ArgSpec("type", "string", "string", "string, int, float, or bool"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -62,9 +62,9 @@ namespace LLMDevTools
             public string    Description => "Set a value in EditorPrefs.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("key",   "string", "",       "EditorPrefs key"),
-                new ArgSpec("value", "string", "",       "Value to set (as string)"),
-                new ArgSpec("type",  "string", "string", "Value type: string, int, float, bool"),
+                new ArgSpec("key",   "string", "",       ""),
+                new ArgSpec("value", "string", "",       ""),
+                new ArgSpec("type",  "string", "string", "string, int, float, or bool"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

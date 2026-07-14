@@ -21,10 +21,10 @@ namespace LLMDevTools
             public string    Description => "Build the Unity player for the specified target.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("target",      "string", "StandaloneWindows64", "Build target platform name"),
-                new ArgSpec("output",      "string", "",                    "Output path for the build"),
-                new ArgSpec("scenes",      "string", "",                    "Comma-separated scene paths; omit for build settings"),
-                new ArgSpec("development", "bool",   "false",               "Enable development mode"),
+                new ArgSpec("target",      "string", "StandaloneWindows64", ""),
+                new ArgSpec("output",      "string", "",                    ""),
+                new ArgSpec("scenes",      "string", "",                    "Comma-separated; omit for build settings"),
+                new ArgSpec("development", "bool",   "false",               ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)

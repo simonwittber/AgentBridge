@@ -16,7 +16,7 @@ namespace LLMDevTools
         private sealed class PlayerSettingsGetCmd : IAgentCommand
         {
             public string    Cmd         => "player_settings_get";
-            public string    Description => "Return current PlayerSettings values.";
+            public string    Description => "";
             public ArgSpec[] Args        => new ArgSpec[0];
 
             public JsonObject Execute(string uid, string requestJson)
@@ -39,8 +39,8 @@ namespace LLMDevTools
             public string    Description => "Set a PlayerSettings value by key.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("key",   "string", "", "Setting name to change"),
-                new ArgSpec("value", "string", "", "New value (as string)"),
+                new ArgSpec("key",   "string", "", ""),
+                new ArgSpec("value", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)

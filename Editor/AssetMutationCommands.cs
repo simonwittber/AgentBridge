@@ -23,8 +23,8 @@ namespace LLMDevTools
             public string    Description => "Create a new folder or material asset at the given path.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Asset path to create"),
-                new ArgSpec("type", "string", "folder", "Asset type: folder or material"),
+                new ArgSpec("path", "string", "", ""),
+                new ArgSpec("type", "string", "folder", "folder or material"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -75,8 +75,8 @@ namespace LLMDevTools
             public string    Description => "Write a text file under Assets/ and reimport. Creates parent folders automatically.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path",    "string", "", "Asset path, e.g. Assets/Scripts/Foo.cs or Assets/Shaders/Bar.shader"),
-                new ArgSpec("content", "string", "", "Full text content to write"),
+                new ArgSpec("path",    "string", "", ""),
+                new ArgSpec("content", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -129,10 +129,10 @@ namespace LLMDevTools
         private sealed class AssetDeleteCmd : IAgentCommand
         {
             public string    Cmd         => "asset_delete";
-            public string    Description => "Delete an asset at the given path.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Asset path to delete"),
+                new ArgSpec("path", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -154,11 +154,11 @@ namespace LLMDevTools
         private sealed class AssetMoveCmd : IAgentCommand
         {
             public string    Cmd         => "asset_move";
-            public string    Description => "Move an asset from one path to another.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("from", "string", "", "Source asset path"),
-                new ArgSpec("to",   "string", "", "Destination asset path"),
+                new ArgSpec("from", "string", "", ""),
+                new ArgSpec("to",   "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -182,11 +182,11 @@ namespace LLMDevTools
         private sealed class AssetCopyCmd : IAgentCommand
         {
             public string    Cmd         => "asset_copy";
-            public string    Description => "Copy an asset from one path to another.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("from", "string", "", "Source asset path"),
-                new ArgSpec("to",   "string", "", "Destination asset path"),
+                new ArgSpec("from", "string", "", ""),
+                new ArgSpec("to",   "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)

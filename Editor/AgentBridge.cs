@@ -452,7 +452,7 @@ namespace LLMDevTools
         private sealed class StatusCmd : IAgentCommand
         {
             public string Cmd         => "status";
-            public string Description => "Query bridge liveness, session ID, and uptime.";
+            public string Description => "";
             public JsonObject Execute(string uid, string requestJson)
             {
                 var resp = MakeResponse(uid, Cmd, "ok");
@@ -465,7 +465,7 @@ namespace LLMDevTools
         private sealed class CommandsCmd : IAgentCommand
         {
             public string Cmd         => "commands";
-            public string Description => "List all available commands and their arguments.";
+            public string Description => "";
             public JsonObject Execute(string uid, string requestJson)
             {
                 var list = new JsonArray();
@@ -497,7 +497,7 @@ namespace LLMDevTools
         private sealed class CompileCmd : IAgentCommand
         {
             public string Cmd         => "compile";
-            public string Description => "Request script compilation; returns structured errors and warnings.";
+            public string Description => "Trigger script compilation; returns errors and warnings.";
             public JsonObject Execute(string uid, string requestJson)
             {
                 _compileMessages.Clear();
@@ -512,7 +512,7 @@ namespace LLMDevTools
         private sealed class RefreshCmd : IAgentCommand
         {
             public string Cmd         => "refresh";
-            public string Description => "Trigger AssetDatabase.Refresh() and wait for completion.";
+            public string Description => "";
             public JsonObject Execute(string uid, string requestJson)
             {
                 FocusUnityWindow();
@@ -524,7 +524,7 @@ namespace LLMDevTools
         private sealed class FocusCmd : IAgentCommand
         {
             public string Cmd         => "focus";
-            public string Description => "Bring the Unity Editor window to the foreground. Required for scene-view animations and screenshots to update when Unity lacks OS focus.";
+            public string Description => "Bring the Unity Editor window to the foreground.";
             public JsonObject Execute(string uid, string requestJson)
             {
                 FocusUnityWindow();

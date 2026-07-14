@@ -24,9 +24,9 @@ namespace LLMDevTools
             public string    Description => "Create a new GameObject, optionally as a 3D primitive.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("name",      "string", "GameObject", "Name of the new object"),
-                new ArgSpec("parent",    "string", "",           "Parent hierarchy path; omit for scene root"),
-                new ArgSpec("primitive", "string", "",           "Primitive: Cube, Sphere, Plane, Cylinder, Capsule, Quad"),
+                new ArgSpec("name",      "string", "GameObject", ""),
+                new ArgSpec("parent",    "string", "",           "Omit for scene root"),
+                new ArgSpec("primitive", "string", "",           "Cube, Sphere, Plane, Cylinder, Capsule, Quad"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -65,10 +65,10 @@ namespace LLMDevTools
         private sealed class ObjectDeleteCmd : IAgentCommand
         {
             public string    Cmd         => "object_delete";
-            public string    Description => "Delete a GameObject by hierarchy path.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Hierarchy path"),
+                new ArgSpec("path", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -91,11 +91,11 @@ namespace LLMDevTools
         private sealed class ObjectActiveCmd : IAgentCommand
         {
             public string    Cmd         => "object_active";
-            public string    Description => "Set the active state of a GameObject.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path",   "string", "",     "Hierarchy path"),
-                new ArgSpec("active", "bool",   "true", "True to activate, false to deactivate"),
+                new ArgSpec("path",   "string", "",     ""),
+                new ArgSpec("active", "bool",   "true", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -120,11 +120,11 @@ namespace LLMDevTools
         private sealed class ObjectRenameCmd : IAgentCommand
         {
             public string    Cmd         => "object_rename";
-            public string    Description => "Rename a GameObject.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Hierarchy path"),
-                new ArgSpec("name", "string", "", "New name"),
+                new ArgSpec("path", "string", "", ""),
+                new ArgSpec("name", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -157,11 +157,11 @@ namespace LLMDevTools
         private sealed class ObjectSelectCmd : IAgentCommand
         {
             public string    Cmd         => "object_select";
-            public string    Description => "Select one or more GameObjects in the editor hierarchy by path.";
+            public string    Description => "Select one or more GameObjects by path.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path",  "string", "", "Single hierarchy path to select"),
-                new ArgSpec("paths", "string", "", "Comma-separated hierarchy paths"),
+                new ArgSpec("path",  "string", "", "Single path"),
+                new ArgSpec("paths", "string", "", "Comma-separated paths"),
             };
 
             public JsonObject Execute(string uid, string requestJson)

@@ -19,7 +19,7 @@ namespace LLMDevTools
             public string    Description => "Invoke a Unity menu item by its full path string.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Full menu path"),
+                new ArgSpec("path", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -52,7 +52,7 @@ namespace LLMDevTools
         private sealed class UuidCmd : IAgentCommand
         {
             public string Cmd         => "uuid";
-            public string Description => "Generate and return a new UUID v4.";
+            public string Description => "";
 
             public JsonObject Execute(string uid, string requestJson)
             {

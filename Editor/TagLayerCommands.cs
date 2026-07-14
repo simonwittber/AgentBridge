@@ -17,7 +17,7 @@ namespace LLMDevTools
         private sealed class TagsLayersCmd : IAgentCommand
         {
             public string    Cmd         => "tags_layers";
-            public string    Description => "Return all tags and layers defined in the project.";
+            public string    Description => "";
             public ArgSpec[] Args        => new ArgSpec[0];
 
             public JsonObject Execute(string uid, string requestJson)
@@ -44,10 +44,10 @@ namespace LLMDevTools
         private sealed class TagAddCmd : IAgentCommand
         {
             public string    Cmd         => "tag_add";
-            public string    Description => "Add a new tag to the project.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("name", "string", "", "Tag name to add"),
+                new ArgSpec("name", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -89,10 +89,10 @@ namespace LLMDevTools
         private sealed class LayerAddCmd : IAgentCommand
         {
             public string    Cmd         => "layer_add";
-            public string    Description => "Add a new layer to the project.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("name", "string", "", "Layer name to add"),
+                new ArgSpec("name", "string", "", ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)

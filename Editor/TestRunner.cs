@@ -22,9 +22,9 @@ namespace LLMDevTools
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("mode",     "string", "EditMode", "EditMode or PlayMode"),
-                new ArgSpec("filter",   "string", "",         "Exact full test name to run"),
+                new ArgSpec("filter",   "string", "",         "Exact full test name"),
                 new ArgSpec("group",    "string", "",         "Suite or namespace prefix"),
-                new ArgSpec("assembly", "string", "",         "Assembly name to restrict run to"),
+                new ArgSpec("assembly", "string", "",         ""),
             };
 
             public JsonObject Execute(string uid, string requestJson)

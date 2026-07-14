@@ -21,7 +21,7 @@ namespace LLMDevTools
         private sealed class SceneInfoCmd : IAgentCommand
         {
             public string Cmd         => "scene_info";
-            public string Description => "Get name, path, dirty flag, and root object count of the active scene.";
+            public string Description => "";
 
             public JsonObject Execute(string uid, string requestJson)
             {
@@ -41,8 +41,8 @@ namespace LLMDevTools
             public string    Description => "Open a scene by asset path.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "",       "Asset path"),
-                new ArgSpec("mode", "string", "Single", "OpenSceneMode: Single or Additive"),
+                new ArgSpec("path", "string", "",       ""),
+                new ArgSpec("mode", "string", "Single", "Single or Additive"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -78,10 +78,10 @@ namespace LLMDevTools
         private sealed class SceneSaveCmd : IAgentCommand
         {
             public string    Cmd         => "scene_save";
-            public string    Description => "Save the currently active scene.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path", "string", "", "Asset path; auto-generated if omitted"),
+                new ArgSpec("path", "string", "", "Auto-generated if omitted"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
@@ -115,10 +115,10 @@ namespace LLMDevTools
         private sealed class SceneNewCmd : IAgentCommand
         {
             public string    Cmd         => "scene_new";
-            public string    Description => "Create a new scene, discarding the current one.";
+            public string    Description => "";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("setup", "string", "empty", "NewSceneSetup: empty or defaultGameObjects"),
+                new ArgSpec("setup", "string", "empty", "empty or defaultGameObjects"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
