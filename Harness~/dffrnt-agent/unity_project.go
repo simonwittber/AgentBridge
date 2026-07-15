@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -46,6 +47,19 @@ func registerProjectTools(cfg Config, s *server.MCPServer) {
 	)
 	s.AddTool(openTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args, _ := req.Params.Arguments.(map[string]any)
+		path, _ := args["path"].(string)
+		if path != "" {
+			absPath, _ := filepath.Abs(path)
+			sessionFile := filepath.Join(absPath, "Temp", "agent", "session.json")
+			if info, err := os.Stat(sessionFile); err == nil && time.Since(info.ModTime()) < 15*time.Second {
+				out, _ := json.MarshalIndent(map[string]any{
+					"status":  "already_running",
+					"message": "Unity is already running with this project",
+					"path":    absPath,
+				}, "", "  ")
+				return mcp.NewToolResultText(string(out)), nil
+			}
+		}
 		return launchUnityProject(cfg, args, "-projectPath", "Unity is opening the project")
 	})
 }
