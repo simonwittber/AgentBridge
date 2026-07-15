@@ -401,13 +401,14 @@ namespace LLMDevTools
 #if UNITY_EDITOR_WIN
         [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
         [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
 #endif
 
         internal static void FocusUnityWindow()
         {
 #if UNITY_EDITOR_WIN
             var hwnd = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
-            ShowWindow(hwnd, 9);
+            if (IsIconic(hwnd)) ShowWindow(hwnd, 9); // SW_RESTORE only when minimized
             SetForegroundWindow(hwnd);
 #endif
         }
