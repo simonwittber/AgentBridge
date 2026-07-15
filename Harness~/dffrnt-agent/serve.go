@@ -32,6 +32,14 @@ func (s *serveState) setProject(path string) {
 	s.cfg.Project = path
 }
 
+func (s *serveState) send(cmd string, args map[string]any) (map[string]any, error) {
+	cfg := s.getConfig()
+	if cfg.Project == defaultProject {
+		return nil, fmt.Errorf("no Unity project set — call set_project first")
+	}
+	return send(cfg, cmd, args)
+}
+
 var coreMCPTools = map[string]bool{
 	"status": true, "compile": true, "refresh": true, "focus": true,
 	"commands": true, "console_logs": true,
@@ -87,7 +95,7 @@ func runServe(cfg Config) {
 				return nil, fmt.Errorf("args: invalid JSON: %w", err)
 			}
 		}
-		resp, err := send(state.getConfig(), cmd, args)
+		resp, err := state.send(cmd, args)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +184,7 @@ func registerTools(state *serveState, s *server.MCPServer, cmds []any) {
 					}
 				}
 			}
-			resp, err := send(state.getConfig(), toolName, args)
+			resp, err := state.send(toolName, args)
 			if err != nil {
 				return nil, err
 			}
