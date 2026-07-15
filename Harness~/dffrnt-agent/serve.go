@@ -7,10 +7,30 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+// serveState holds mutable config shared across all MCP tool handler closures.
+// Project can be changed at runtime via the set_project tool.
+type serveState struct {
+	mu  sync.RWMutex
+	cfg Config
+}
+
+func (s *serveState) getConfig() Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cfg
+}
+
+func (s *serveState) setProject(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cfg.Project = path
+}
 
 var coreMCPTools = map[string]bool{
 	"status": true, "compile": true, "refresh": true, "focus": true,
@@ -26,11 +46,27 @@ var coreMCPTools = map[string]bool{
 }
 
 func runServe(cfg Config) {
+	state := &serveState{cfg: cfg}
 	s := server.NewMCPServer("unity-agentbridge", "0.1.0")
 
 	registerProjectTools(cfg, s)
 
-	if err := loadTools(cfg, s); err != nil {
+	setProjectTool := mcp.NewTool("set_project",
+		mcp.WithDescription("Set the Unity project path for this session."),
+		mcp.WithString("path", mcp.Description("Path to the Unity project root")),
+	)
+	s.AddTool(setProjectTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args, _ := req.Params.Arguments.(map[string]any)
+		path, _ := args["path"].(string)
+		if path == "" {
+			return nil, fmt.Errorf("path is required")
+		}
+		state.setProject(path)
+		out, _ := json.MarshalIndent(map[string]any{"status": "ok", "project": path}, "", "  ")
+		return mcp.NewToolResultText(string(out)), nil
+	})
+
+	if err := loadTools(state, s); err != nil {
 		log.Printf("warning: %v — serving with no tools until Unity connects", err)
 	}
 
@@ -51,7 +87,7 @@ func runServe(cfg Config) {
 				return nil, fmt.Errorf("args: invalid JSON: %w", err)
 			}
 		}
-		resp, err := send(cfg, cmd, args)
+		resp, err := send(state.getConfig(), cmd, args)
 		if err != nil {
 			return nil, err
 		}
@@ -65,37 +101,38 @@ func runServe(cfg Config) {
 	}
 }
 
-func loadTools(cfg Config, s *server.MCPServer) error {
-	resp, err := send(cfg, "commands", nil)
+func loadTools(state *serveState, s *server.MCPServer) error {
+	resp, err := send(state.getConfig(), "commands", nil)
 	if err != nil {
-		return loadToolsFromCache(cfg, s)
+		return loadToolsFromCache(state, s)
 	}
 
 	cmds, _ := resp["commands"].([]any)
-	registerTools(cfg, s, cmds)
+	registerTools(state, s, cmds)
 
 	if data, marshalErr := json.Marshal(cmds); marshalErr == nil {
-		os.WriteFile(cfg.SchemaFile, data, 0644) //nolint:errcheck
+		os.WriteFile(state.getConfig().SchemaFile, data, 0644) //nolint:errcheck
 	}
 
 	return nil
 }
 
-func loadToolsFromCache(cfg Config, s *server.MCPServer) error {
-	data, err := os.ReadFile(cfg.SchemaFile)
+func loadToolsFromCache(state *serveState, s *server.MCPServer) error {
+	schemaFile := state.getConfig().SchemaFile
+	data, err := os.ReadFile(schemaFile)
 	if err != nil {
-		return fmt.Errorf("Unity unavailable and no cached schema at %s", cfg.SchemaFile)
+		return fmt.Errorf("Unity unavailable and no cached schema at %s", schemaFile)
 	}
 	var cmds []any
 	if err := json.Unmarshal(data, &cmds); err != nil {
 		return fmt.Errorf("invalid schema cache: %w", err)
 	}
-	registerTools(cfg, s, cmds)
+	registerTools(state, s, cmds)
 	log.Printf("loaded %d tool(s) from schema cache", len(cmds))
 	return nil
 }
 
-func registerTools(cfg Config, s *server.MCPServer, cmds []any) {
+func registerTools(state *serveState, s *server.MCPServer, cmds []any) {
 	for _, raw := range cmds {
 		cmdMap, ok := raw.(map[string]any)
 		if !ok {
@@ -155,7 +192,7 @@ func registerTools(cfg Config, s *server.MCPServer, cmds []any) {
 					}
 				}
 			}
-			resp, err := send(cfg, toolName, args)
+			resp, err := send(state.getConfig(), toolName, args)
 			if err != nil {
 				return nil, err
 			}
