@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -27,11 +28,19 @@ const (
 	defaultSchema  = "agent_schema.json"
 )
 
+func defaultSchemaPath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return defaultSchema
+	}
+	return filepath.Join(filepath.Dir(exe), defaultSchema)
+}
+
 func main() {
 	cfg := Config{
 		Project:    defaultProject,
 		Timeout:    defaultTimeout,
-		SchemaFile: defaultSchema,
+		SchemaFile: defaultSchemaPath(),
 	}
 	var argsJSON string
 	var cmd string
