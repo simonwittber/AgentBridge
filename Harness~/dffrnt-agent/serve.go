@@ -66,8 +66,8 @@ func runServe(cfg Config) {
 		return mcp.NewToolResultText(string(out)), nil
 	})
 
-	if err := loadTools(state, s); err != nil {
-		log.Printf("warning: %v — serving with no tools until Unity connects", err)
+	if err := loadToolsFromCache(state, s); err != nil {
+		log.Printf("warning: %v — only set_project and invoke available", err)
 	}
 
 	invokeTool := mcp.NewTool("invoke",
@@ -99,22 +99,6 @@ func runServe(cfg Config) {
 		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-func loadTools(state *serveState, s *server.MCPServer) error {
-	resp, err := send(state.getConfig(), "commands", nil)
-	if err != nil {
-		return loadToolsFromCache(state, s)
-	}
-
-	cmds, _ := resp["commands"].([]any)
-	registerTools(state, s, cmds)
-
-	if data, marshalErr := json.Marshal(cmds); marshalErr == nil {
-		os.WriteFile(state.getConfig().SchemaFile, data, 0644) //nolint:errcheck
-	}
-
-	return nil
 }
 
 func loadToolsFromCache(state *serveState, s *server.MCPServer) error {
