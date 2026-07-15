@@ -4,7 +4,14 @@
       "mcp__unity-example__*",
       "Bash(go build *)",
       "Bash(go test *)",
-      "Bash(rtk git *)"
+      "Bash(rtk git *)",
+      "Bash(rtk go *)",
+      "Bash(rtk ls *)",
+      "Bash(rtk grep *)",
+      "mcp__unity-agentbridge__set_project",
+      "mcp__unity-agentbridge__open_project",
+      "mcp__unity-agentbridge__compile",
+      "mcp__unity-agentbridge__console_logs"
     ]
   },
   "enableAllProjectMcpServers": true,
