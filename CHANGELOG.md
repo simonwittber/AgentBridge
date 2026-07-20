@@ -7,7 +7,7 @@
 - Profiler tools: `profiler_start`, `profiler_stop`, `profiler_clear`, `profiler_set_deep`, `profiler_get_frame`, `profiler_get_samples`
 - `help` tool: returns full description and argument details for any command on demand
 - `screenshot` now returns the image inline (base64 PNG) with optional `max_size` downscale
-- `execute_script`: compile and run C# code snippets in the Editor using Roslyn
+- `execute_script`: compile and run C# code snippets in the Editor
 
 ### Changed
 - MCP tools/list context cost reduced by 31% (from ~3,000 to ~2,063 tokens) by moving argument descriptions behind the `help` tool
