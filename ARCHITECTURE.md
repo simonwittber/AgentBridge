@@ -1,6 +1,6 @@
 # AgentBridge Architecture
 
-## IPC — MAILDIR queue
+## IPC — file queue
 
 One file per message under `Temp/agent/`:
 

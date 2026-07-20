@@ -92,6 +92,7 @@ Expected output:
 | `compile` | Request script compilation; returns structured errors and warnings |
 | `refresh` | Trigger `AssetDatabase.Refresh()` and wait for completion |
 | `commands` | List all available commands and their arguments |
+| `focus` | Bring the Unity Editor window to the foreground |
 
 ### Scene
 
@@ -127,6 +128,11 @@ Expected output:
 | `asset_info` | GUID and importer settings for an asset |
 | `asset_set` | Set an importer field and reimport |
 | `asset_find` | Find assets by type / label filter |
+| `asset_create` | Create a new folder or material asset |
+| `asset_delete` | Delete an asset |
+| `asset_move` | Move an asset to a new path |
+| `asset_copy` | Copy an asset to a new path |
+| `asset_write_text` | Write a text file (script, shader, JSON, etc.) under `Assets/` and reimport |
 | `material_get` | Get all shader properties of a material |
 | `material_set` | Set a shader property on a material |
 
@@ -138,7 +144,51 @@ Expected output:
 | `play_mode` | Enter, exit, or query play mode |
 | `menu_item` | Invoke a Unity menu item by path |
 | `run_tests` | Run edit-mode or play-mode tests; returns pass/fail/skip |
+| `screenshot` | Render the scene view or main camera to a PNG file |
+| `selection_get` | Return the currently selected GameObjects and assets |
+| `undo` | Perform an undo operation in the editor |
+| `redo` | Perform a redo operation in the editor |
 | `uuid` | Generate a UUID v4 |
+
+### Player settings & editor prefs
+
+| Command | Description |
+|---|---|
+| `player_settings_get` | Return current PlayerSettings values |
+| `player_settings_set` | Set a PlayerSettings value by key |
+| `editor_pref_get` | Get a value from EditorPrefs |
+| `editor_pref_set` | Set a value in EditorPrefs |
+
+### Tags & layers
+
+| Command | Description |
+|---|---|
+| `tags_layers` | Return all tags and layers defined in the project |
+| `tag_add` | Add a new tag to the project |
+| `layer_add` | Add a new layer to the project |
+
+### Packages
+
+| Command | Description |
+|---|---|
+| `package_list` | List installed Unity packages |
+| `package_add` | Add or update a package by identifier |
+| `package_remove` | Remove an installed package by name |
+| `package_search` | Search the Unity Package Registry |
+
+### Reflection
+
+| Command | Description |
+|---|---|
+| `reflect_assemblies` | List loaded assemblies |
+| `reflect_types` | Search for public types by name or namespace |
+| `reflect_members` | List public members of a named type |
+
+### Build
+
+| Command | Description |
+|---|---|
+| `build` | Build the Unity player for the specified target |
 
 ---
 
