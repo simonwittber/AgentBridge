@@ -48,6 +48,19 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           awk "/^## \[$VERSION\]/{found=1; next} /^## \[/{if(found) exit} found{print}" CHANGELOG.md > release_notes.md
 
+      - name: Append MCP context size to release notes
+        run: |
+          cd "Harness~/dffrnt-agent"
+          go test -v ./contextsize/ 2>&1 \
+            | grep -E 'context_size_test\.go:[0-9]+:' \
+            | sed 's/[[:space:]]*context_size_test\.go:[0-9]*:[[:space:]]*//' \
+            > /tmp/ctx.txt
+          echo "" >> ../../release_notes.md
+          echo "### MCP context size" >> ../../release_notes.md
+          printf '```\n' >> ../../release_notes.md
+          cat /tmp/ctx.txt >> ../../release_notes.md
+          printf '```\n' >> ../../release_notes.md
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
