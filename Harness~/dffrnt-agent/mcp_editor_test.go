@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"testing"
 )
 
@@ -163,4 +164,55 @@ func TestMCP_Screenshot(t *testing.T) {
 	if path == "" {
 		t.Error("missing or empty path in screenshot response")
 	}
+}
+
+func TestMCP_Screenshot_ReturnsInlineImage(t *testing.T) {
+	c := shared
+
+	resp := c.call(t, "tools/call", map[string]any{
+		"name":      "screenshot",
+		"arguments": map[string]any{},
+	})
+	if errVal, ok := resp["error"]; ok {
+		t.Fatalf("MCP error calling screenshot: %v", errVal)
+	}
+	result, _ := resp["result"].(map[string]any)
+	if result == nil {
+		t.Fatalf("no result: %v", resp)
+	}
+	content, _ := result["content"].([]any)
+
+	var imgEntry map[string]any
+	for _, item := range content {
+		m, _ := item.(map[string]any)
+		if m["type"] == "image" {
+			imgEntry = m
+			break
+		}
+	}
+	if imgEntry == nil {
+		t.Fatal("no image content in screenshot result")
+	}
+	if imgEntry["mimeType"] != "image/png" {
+		t.Errorf("expected mimeType image/png, got %v", imgEntry["mimeType"])
+	}
+	dataStr, _ := imgEntry["data"].(string)
+	if dataStr == "" {
+		t.Fatal("empty image data")
+	}
+	raw, err := base64.StdEncoding.DecodeString(dataStr)
+	if err != nil {
+		t.Fatalf("base64 decode: %v", err)
+	}
+	pngMagic := []byte{0x89, 'P', 'N', 'G'}
+	if len(raw) < 4 || string(raw[:4]) != string(pngMagic) {
+		t.Errorf("data is not a PNG (first 4 bytes: %x)", raw[:min(4, len(raw))])
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

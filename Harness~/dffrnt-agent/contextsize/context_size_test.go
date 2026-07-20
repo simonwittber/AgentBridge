@@ -25,6 +25,10 @@ var coreMCPTools = map[string]bool{
 	"asset_write_text": true, "asset_create": true, "asset_delete": true,
 	"asset_move": true, "asset_copy": true, "asset_find": true,
 	"undo": true, "redo": true, "play_mode": true, "run_tests": true,
+	"set_transform": true, "duplicate_object": true, "reparent_object": true,
+	"profiler_start": true, "profiler_stop": true, "profiler_clear": true,
+	"profiler_set_deep": true, "profiler_get_frame": true, "profiler_get_samples": true,
+	"help": true,
 }
 
 type mcpProperty struct {
@@ -71,22 +75,43 @@ func TestMCPContextSize(t *testing.T) {
 	tools := []mcpTool{
 		{
 			Name:        "set_project",
-			Description: "Set the Unity project path for this session.",
+			Description: "Set the Unity project path.",
 			InputSchema: mcpInputSchema{
-				Type: "object",
-				Properties: map[string]mcpProperty{
-					"path": {Type: "string", Description: "Path to the Unity project root"},
-				},
+				Type:       "object",
+				Properties: map[string]mcpProperty{"path": {Type: "string"}},
 			},
 		},
 		{
 			Name:        "invoke",
-			Description: "Call any Unity command by name. Use 'commands' to list all available commands.",
+			Description: "Call any Unity command by name.",
 			InputSchema: mcpInputSchema{
 				Type: "object",
 				Properties: map[string]mcpProperty{
-					"cmd":  {Type: "string", Description: "Command name"},
-					"args": {Type: "string", Description: "JSON object of arguments"},
+					"cmd":  {Type: "string"},
+					"args": {Type: "string"},
+				},
+			},
+		},
+		{
+			Name:        "screenshot",
+			Description: "Render scene view or main camera to a PNG.",
+			InputSchema: mcpInputSchema{
+				Type: "object",
+				Properties: map[string]mcpProperty{
+					"path":     {Type: "string"},
+					"width":    {Type: "number"},
+					"height":   {Type: "number"},
+					"max_size": {Type: "number"},
+				},
+			},
+		},
+		{
+			Name:        "help",
+			Description: "Get full description and argument details for any command.",
+			InputSchema: mcpInputSchema{
+				Type: "object",
+				Properties: map[string]mcpProperty{
+					"command": {Type: "string", Description: "Command name to look up"},
 				},
 			},
 		},
@@ -115,10 +140,8 @@ func TestMCPContextSize(t *testing.T) {
 					continue
 				}
 				argType, _ := argMap["type"].(string)
-				argDesc, _ := argMap["description"].(string)
 				tool.InputSchema.Properties[argName] = mcpProperty{
-					Type:        argTypeToMCPType(argType),
-					Description: argDesc,
+					Type: argTypeToMCPType(argType),
 				}
 			}
 		}
