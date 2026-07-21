@@ -8,6 +8,8 @@ namespace LLMDevTools
     [InitializeOnLoad]
     internal static class ProfilerCommands
     {
+        const string SessionKey = "AgentBridge.ProfilerMarkers";
+
         static readonly Dictionary<string, ProfilerRecorder> s_recorders = new();
 
         static ProfilerCommands()
@@ -16,6 +18,37 @@ namespace LLMDevTools
             AgentBridge.Register(new ProfilerStopCmd());
             AgentBridge.Register(new ProfilerClearCmd());
             AgentBridge.Register(new ProfilerGetSamplesCmd());
+
+            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+        }
+
+        static void OnPlayModeStateChanged(PlayModeStateChange state)
+        {
+            if (state != PlayModeStateChange.EnteredPlayMode) return;
+            var json = SessionState.GetString(SessionKey, "");
+            if (string.IsNullOrEmpty(json)) return;
+            var names = JsonNode.Parse(json)?.AsArray();
+            if (names == null) return;
+            DisposeAll();
+            foreach (var node in names)
+            {
+                var name = node?.GetValue<string>() ?? "";
+                if (!string.IsNullOrEmpty(name))
+                    s_recorders[name] = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, name, 300);
+            }
+        }
+
+        static void StartRecorders(string[] names)
+        {
+            DisposeAll();
+            var arr = new JsonArray();
+            foreach (var name in names)
+            {
+                if (string.IsNullOrEmpty(name)) continue;
+                s_recorders[name] = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, name, 300);
+                arr.Add(name);
+            }
+            SessionState.SetString(SessionKey, arr.ToJsonString());
         }
 
         static void DisposeAll()
@@ -33,7 +66,7 @@ namespace LLMDevTools
         private sealed class ProfilerStartCmd : IAgentCommand
         {
             public string    Cmd         => "profiler_start";
-            public string    Description => "Begin recording named Profiler.BeginSample markers (ProfilerCategory.Scripts).";
+            public string    Description => "Begin recording named profiler markers (ProfilerCategory.Scripts). If domain reload on play mode entry is enabled (the default), recorders are recreated automatically when play mode enters using the same marker names.";
             public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
@@ -48,7 +81,7 @@ namespace LLMDevTools
                 if (markersNode == null || markersNode.Count == 0)
                 {
                     var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    err["message"] = "markers is required: pass a JSON array of Profiler.BeginSample marker names.";
+                    err["message"] = "markers is required: pass a JSON array of marker name strings.";
                     return err;
                 }
 
@@ -56,12 +89,7 @@ namespace LLMDevTools
                 for (int i = 0; i < markersNode.Count; i++)
                     names[i] = markersNode[i]?.GetValue<string>() ?? "";
 
-                DisposeAll();
-                foreach (var name in names)
-                {
-                    if (string.IsNullOrEmpty(name)) continue;
-                    s_recorders[name] = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, name, 300);
-                }
+                StartRecorders(names);
 
                 var markerArr = new JsonArray();
                 foreach (var name in s_recorders.Keys)
@@ -102,6 +130,7 @@ namespace LLMDevTools
             public JsonObject Execute(string uid, string requestJson)
             {
                 DisposeAll();
+                SessionState.EraseString(SessionKey);
                 return AgentBridge.MakeResponse(uid, Cmd, "ok");
             }
         }

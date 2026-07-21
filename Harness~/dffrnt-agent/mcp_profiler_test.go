@@ -148,6 +148,88 @@ return null;`
 	}
 }
 
+func TestMCP_Profiler_RecordersRecreatdAfterPlayModeEntry(t *testing.T) {
+	c := shared
+
+	// Must start in edit mode.
+	status := c.callTool(t, "play_mode", map[string]any{"action": "status"})
+	if playing, _ := status["playing"].(bool); playing {
+		t.Skip("already in play mode — skipping profiler play mode test")
+	}
+	defer func() {
+		c.callTool(t, "play_mode", map[string]any{"action": "exit"})
+		c.callTool(t, "profiler_clear", map[string]any{})
+	}()
+
+	// Start recorders before entering play mode.
+	start := c.callTool(t, "profiler_start", map[string]any{"markers": []any{"MyPlayModeMarker"}})
+	if start["status"] != "ok" {
+		t.Fatalf("profiler_start failed: %v", start)
+	}
+
+	// Enter play mode — domain reload destroys the recorders, then EnteredPlayMode recreates them.
+	enter := c.callTool(t, "play_mode", map[string]any{"action": "enter"})
+	if enter["status"] != "ok" {
+		t.Fatalf("play_mode enter failed: %v", enter)
+	}
+
+	// Recorders should have been recreated by the EnteredPlayMode callback.
+	// valid=true requires the game to have a ProfilerMarker with this name;
+	// we only verify the recorder entry is present (recreation succeeded).
+	p := c.callTool(t, "profiler_get_samples", map[string]any{"marker": "MyPlayModeMarker"})
+	if p["status"] != "ok" {
+		t.Fatalf("profiler_get_samples after play mode entry failed: %v", p)
+	}
+	markers, _ := p["markers"].([]any)
+	if len(markers) != 1 {
+		t.Errorf("expected recorder to be recreated after play mode entry, got %d marker entries", len(markers))
+	}
+}
+
+func TestMCP_Profiler_CapturesDataInPlayMode(t *testing.T) {
+	c := shared
+
+	status := c.callTool(t, "play_mode", map[string]any{"action": "status"})
+	if playing, _ := status["playing"].(bool); playing {
+		t.Skip("already in play mode — skipping")
+	}
+	defer func() {
+		c.callTool(t, "play_mode", map[string]any{"action": "exit"})
+		c.callTool(t, "profiler_clear", map[string]any{})
+	}()
+
+	c.callTool(t, "play_mode", map[string]any{"action": "enter"})
+
+	const markerCode = `var m = new Unity.Profiling.ProfilerMarker(Unity.Profiling.ProfilerCategory.Scripts, "MyPlayModeCapture");
+for (int i = 0; i < 5; i++) { m.Begin(); m.End(); }
+return null;`
+
+	// Pre-register and fire the marker so the recorder can find it.
+	c.invokeCmd(t, "execute_script", map[string]any{"code": markerCode})
+
+	c.callTool(t, "profiler_start", map[string]any{"markers": []any{"MyPlayModeCapture"}})
+
+	// Fire again so the now-valid recorder captures samples.
+	c.invokeCmd(t, "execute_script", map[string]any{"code": markerCode})
+
+	p := c.callTool(t, "profiler_get_samples", map[string]any{"marker": "MyPlayModeCapture"})
+	if p["status"] != "ok" {
+		t.Fatalf("profiler_get_samples failed: %v", p)
+	}
+	markers, _ := p["markers"].([]any)
+	if len(markers) != 1 {
+		t.Fatalf("expected 1 marker entry, got %d", len(markers))
+	}
+	entry, _ := markers[0].(map[string]any)
+	if entry["valid"] != true {
+		t.Errorf("expected valid=true in play mode, got %v", entry["valid"])
+	}
+	count, _ := entry["sampleCount"].(float64)
+	if count == 0 {
+		t.Errorf("expected sampleCount > 0, got %v", count)
+	}
+}
+
 func TestMCP_ProfilerGetSamples_BeforeStart(t *testing.T) {
 	c := shared
 
