@@ -1,99 +1,34 @@
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
+using Unity.Profiling;
 using UnityEditor;
-using UnityEditor.Profiling;
-using UnityEditorInternal;
 
 namespace LLMDevTools
 {
     [InitializeOnLoad]
     internal static class ProfilerCommands
     {
+        static readonly string[] DefaultMarkers =
+            { "Main Thread", "Render Thread", "PlayerLoop", "GC.Alloc" };
+
+        static readonly Dictionary<string, ProfilerRecorder> s_recorders = new();
+
         static ProfilerCommands()
         {
             AgentBridge.Register(new ProfilerStartCmd());
             AgentBridge.Register(new ProfilerStopCmd());
             AgentBridge.Register(new ProfilerClearCmd());
-            AgentBridge.Register(new ProfilerSetDeepCmd());
-            AgentBridge.Register(new ProfilerGetFrameCmd());
             AgentBridge.Register(new ProfilerGetSamplesCmd());
         }
 
-        static int ResolveFrame(JsonNode req)
+        static void DisposeAll()
         {
-            var frameNode = req?["frame"];
-            if (frameNode != null)
-                return frameNode.GetValue<int>();
-            return ProfilerDriver.lastFrameIndex;
-        }
-
-        static bool HasFrameData(int frame) =>
-            frame >= 0
-            && frame >= ProfilerDriver.firstFrameIndex
-            && frame <= ProfilerDriver.lastFrameIndex;
-
-        // Build a recursive sample node from HierarchyFrameDataView.
-        static JsonObject BuildNode(HierarchyFrameDataView view, int id, string prefix)
-        {
-            var name    = view.GetItemName(id);
-            var total   = view.GetItemColumnDataAsDouble(id, HierarchyFrameDataView.columnTotalTime);
-            var self    = view.GetItemColumnDataAsDouble(id, HierarchyFrameDataView.columnSelfTime);
-            var calls   = (int)view.GetItemColumnDataAsDouble(id, HierarchyFrameDataView.columnCalls);
-
-            var node = new JsonObject
+            foreach (var kvp in s_recorders)
             {
-                ["name"]    = name,
-                ["totalMs"] = System.Math.Round(total, 3),
-                ["selfMs"]  = System.Math.Round(self,  3),
-                ["calls"]   = calls,
-            };
-
-            if (!view.HasItemChildren(id))
-                return node;
-
-            var childIds = new List<int>();
-            view.GetItemChildren(id, childIds);
-            var arr = new JsonArray();
-            foreach (var cid in childIds)
-            {
-                var child = BuildNode(view, cid, prefix);
-                if (prefix.Length == 0 || child["name"]!.GetValue<string>().StartsWith(prefix))
-                    arr.Add(child);
-                else if (child["children"] != null)
-                    arr.Add(child);
+                var r = kvp.Value;
+                r.Dispose();
             }
-            if (arr.Count > 0)
-                node["children"] = arr;
-
-            return node;
-        }
-
-        // Flatten the hierarchy into a list, optionally filtered by prefix.
-        static void CollectSamples(HierarchyFrameDataView view, int id, string prefix, JsonArray into)
-        {
-            var name  = view.GetItemName(id);
-            var total = view.GetItemColumnDataAsDouble(id, HierarchyFrameDataView.columnTotalTime);
-            var self  = view.GetItemColumnDataAsDouble(id, HierarchyFrameDataView.columnSelfTime);
-            var calls = (int)view.GetItemColumnDataAsDouble(id, HierarchyFrameDataView.columnCalls);
-
-            if (prefix.Length == 0 || name.StartsWith(prefix))
-            {
-                into.Add(new JsonObject
-                {
-                    ["name"]    = name,
-                    ["totalMs"] = System.Math.Round(total, 3),
-                    ["selfMs"]  = System.Math.Round(self,  3),
-                    ["calls"]   = calls,
-                });
-            }
-
-            if (!view.HasItemChildren(id))
-                return;
-
-            var childIds = new List<int>();
-            view.GetItemChildren(id, childIds);
-            foreach (var cid in childIds)
-                CollectSamples(view, cid, prefix, into);
+            s_recorders.Clear();
         }
 
         // ── commands ──────────────────────────────────────────────────────────
@@ -101,25 +36,58 @@ namespace LLMDevTools
         private sealed class ProfilerStartCmd : IAgentCommand
         {
             public string    Cmd         => "profiler_start";
-            public string    Description => "Begin a profiler capture session.";
-            public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
+            public string    Description => "Begin recording named profiler markers.";
+            public bool      Core        => true;
+            public ArgSpec[] Args        => new[]
+            {
+                new ArgSpec("markers", "any", "", "JSON array of marker name strings; omit for defaults"),
+            };
 
             public JsonObject Execute(string uid, string requestJson)
             {
-                ProfilerDriver.enabled = true;
-                return AgentBridge.MakeResponse(uid, Cmd, "ok");
+                var req = JsonNode.Parse(requestJson);
+
+                string[] names = DefaultMarkers;
+                var markersNode = req?["markers"]?.AsArray();
+                if (markersNode != null && markersNode.Count > 0)
+                {
+                    names = new string[markersNode.Count];
+                    for (int i = 0; i < markersNode.Count; i++)
+                        names[i] = markersNode[i]?.GetValue<string>() ?? "";
+                }
+
+                DisposeAll();
+                foreach (var name in names)
+                {
+                    if (string.IsNullOrEmpty(name)) continue;
+                    s_recorders[name] = ProfilerRecorder.StartNew(ProfilerCategory.Internal, name, 300);
+                }
+
+                var markerArr = new JsonArray();
+                foreach (var name in s_recorders.Keys)
+                    markerArr.Add(name);
+
+                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+                resp["markers"] = markerArr;
+                return resp;
             }
         }
 
         private sealed class ProfilerStopCmd : IAgentCommand
         {
             public string    Cmd         => "profiler_stop";
-            public string    Description => "Stop the current profiler capture session.";
+            public string    Description => "Stop the current profiler recording session.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
             public JsonObject Execute(string uid, string requestJson)
             {
-                ProfilerDriver.enabled = false;
+                foreach (var key in new List<string>(s_recorders.Keys))
+                {
+                    var r = s_recorders[key];
+                    r.Stop();
+                    s_recorders[key] = r;
+                }
                 return AgentBridge.MakeResponse(uid, Cmd, "ok");
             }
         }
@@ -127,125 +95,83 @@ namespace LLMDevTools
         private sealed class ProfilerClearCmd : IAgentCommand
         {
             public string    Cmd         => "profiler_clear";
-            public string    Description => "Clear all captured profiler frames.";
+            public string    Description => "Stop and dispose all profiler recorders.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
             public JsonObject Execute(string uid, string requestJson)
             {
-                ProfilerDriver.ClearAllFrames();
+                DisposeAll();
                 return AgentBridge.MakeResponse(uid, Cmd, "ok");
-            }
-        }
-
-        private sealed class ProfilerSetDeepCmd : IAgentCommand
-        {
-            public string    Cmd         => "profiler_set_deep";
-            public string    Description => "Enable or disable deep profiling. Takes effect on the next domain reload.";
-            public ArgSpec[] Args        => new[]
-            {
-                new ArgSpec("enabled", "bool", "true", "True to enable deep profiling, false to disable"),
-            };
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                var req     = System.Text.Json.Nodes.JsonNode.Parse(requestJson);
-                var enabled = req?["enabled"]?.GetValue<bool>() ?? true;
-                ProfilerDriver.deepProfiling = enabled;
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["deepProfiling"] = enabled;
-                return resp;
-            }
-        }
-
-        private sealed class ProfilerGetFrameCmd : IAgentCommand
-        {
-            public string    Cmd         => "profiler_get_frame";
-            public string    Description => "Return the sample hierarchy for a captured frame as a tree.";
-            public ArgSpec[] Args        => new[]
-            {
-                new ArgSpec("frame",  "int",    "-1", "Frame index to query; -1 or omit for the last captured frame"),
-                new ArgSpec("prefix", "string", "",   "Only include samples whose name starts with this prefix"),
-            };
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                var req    = System.Text.Json.Nodes.JsonNode.Parse(requestJson);
-                var frame  = ResolveFrame(req);
-                var prefix = req?["prefix"]?.GetValue<string>() ?? "";
-
-                if (!HasFrameData(frame))
-                {
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = frame < 0
-                        ? "No profiler data captured. Run profiler_start, enter play mode, then call profiler_stop."
-                        : $"Frame {frame} is out of range [{ProfilerDriver.firstFrameIndex}, {ProfilerDriver.lastFrameIndex}].";
-                    return e;
-                }
-
-                using var view = ProfilerDriver.GetHierarchyFrameDataView(
-                    frame, 0,
-                    HierarchyFrameDataView.ViewModes.MergeSamplesWithTheSameName,
-                    HierarchyFrameDataView.columnTotalTime, false);
-
-                if (!view.valid)
-                {
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = $"Frame {frame} data is not available.";
-                    return e;
-                }
-
-                var root = BuildNode(view, view.GetRootItemID(), prefix);
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["frame"] = frame;
-                resp["root"]  = root;
-                return resp;
             }
         }
 
         private sealed class ProfilerGetSamplesCmd : IAgentCommand
         {
             public string    Cmd         => "profiler_get_samples";
-            public string    Description => "Return a flat list of samples from a captured frame, sorted by totalMs descending.";
+            public string    Description => "Return summary stats (and optionally raw values) for recorded markers.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("frame",  "int",    "-1", "Frame index to query; -1 or omit for the last captured frame"),
-                new ArgSpec("prefix", "string", "",   "Only include samples whose name starts with this prefix"),
+                new ArgSpec("marker", "string", "", "Filter to a single named marker; omit for all"),
+                new ArgSpec("raw",    "bool",   "false", "If true, include per-sample ms values array"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
             {
-                var req    = System.Text.Json.Nodes.JsonNode.Parse(requestJson);
-                var frame  = ResolveFrame(req);
-                var prefix = req?["prefix"]?.GetValue<string>() ?? "";
+                var req    = JsonNode.Parse(requestJson);
+                var filter = req?["marker"]?.GetValue<string>() ?? "";
+                var raw    = req?["raw"]?.GetValue<bool>() ?? false;
 
-                if (!HasFrameData(frame))
+                if (filter != "" && !s_recorders.ContainsKey(filter))
                 {
                     var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = frame < 0
-                        ? "No profiler data captured. Run profiler_start, enter play mode, then call profiler_stop."
-                        : $"Frame {frame} is out of range [{ProfilerDriver.firstFrameIndex}, {ProfilerDriver.lastFrameIndex}].";
+                    e["message"] = $"Marker '{filter}' not found. Call profiler_start first.";
                     return e;
                 }
 
-                using var view = ProfilerDriver.GetHierarchyFrameDataView(
-                    frame, 0,
-                    HierarchyFrameDataView.ViewModes.MergeSamplesWithTheSameName,
-                    HierarchyFrameDataView.columnTotalTime, false);
-
-                if (!view.valid)
+                var result = new JsonArray();
+                foreach (var kvp in s_recorders)
                 {
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = $"Frame {frame} data is not available.";
-                    return e;
-                }
+                    if (filter != "" && kvp.Key != filter) continue;
 
-                var samples = new JsonArray();
-                CollectSamples(view, view.GetRootItemID(), prefix, samples);
+                    var recorder = kvp.Value;
+                    int count    = recorder.Count;
+
+                    double lastMs = 0, sumMs = 0, minMs = double.MaxValue, maxMs = 0;
+                    var samplesArr = raw ? new JsonArray() : null;
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        double ms = recorder.GetSample(i).Value / 1_000_000.0;
+                        if (i == count - 1) lastMs = ms;
+                        sumMs += ms;
+                        if (ms < minMs) minMs = ms;
+                        if (ms > maxMs) maxMs = ms;
+                        samplesArr?.Add(System.Math.Round(ms, 3));
+                    }
+
+                    double avgMs = count > 0 ? sumMs / count : 0;
+                    if (count == 0) minMs = 0;
+
+                    var entry = new JsonObject
+                    {
+                        ["name"]        = kvp.Key,
+                        ["valid"]       = recorder.Valid,
+                        ["sampleCount"] = count,
+                        ["lastMs"]      = System.Math.Round(lastMs, 3),
+                        ["avgMs"]       = System.Math.Round(avgMs,  3),
+                        ["minMs"]       = System.Math.Round(minMs,  3),
+                        ["maxMs"]       = System.Math.Round(maxMs,  3),
+                    };
+                    if (samplesArr != null)
+                        entry["samples"] = samplesArr;
+
+                    result.Add(entry);
+                }
 
                 var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["frame"]   = frame;
-                resp["samples"] = samples;
-                resp["count"]   = samples.Count;
+                resp["markers"] = result;
                 return resp;
             }
         }

@@ -8,7 +8,7 @@ func TestMCP_PrefabSave_NoStage(t *testing.T) {
 	c := shared
 
 	// prefab_save should error when no prefab stage is open.
-	p := c.callTool(t, "prefab_save", map[string]any{})
+	p := c.invokeCmd(t, "prefab_save", map[string]any{})
 	if p["status"] != "error" {
 		t.Errorf("expected error when no prefab stage open, got %v", p["status"])
 	}
@@ -17,7 +17,7 @@ func TestMCP_PrefabSave_NoStage(t *testing.T) {
 func TestMCP_PrefabOpen_Missing(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "prefab_open", map[string]any{"path": "Assets/Prefabs/DoesNotExist_MCP.prefab"})
+	p := c.invokeCmd(t, "prefab_open", map[string]any{"path": "Assets/Prefabs/DoesNotExist_MCP.prefab"})
 	if p["status"] != "error" {
 		t.Errorf("expected error for missing prefab, got %v", p["status"])
 	}
@@ -80,12 +80,12 @@ PrefabInstance:
 		t.Skipf("could not write test prefab: %v", write)
 	}
 
-	open := c.callTool(t, "prefab_open", map[string]any{"path": prefabPath})
+	open := c.invokeCmd(t, "prefab_open", map[string]any{"path": prefabPath})
 	if open["status"] != "ok" {
 		t.Skipf("prefab_open failed (prefab format may differ by Unity version): %v", open)
 	}
 
-	save := c.callTool(t, "prefab_save", map[string]any{})
+	save := c.invokeCmd(t, "prefab_save", map[string]any{})
 	if save["status"] != "ok" {
 		t.Errorf("prefab_save failed: %v", save)
 	}

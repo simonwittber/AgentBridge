@@ -16,6 +16,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "play_mode";
             public string    Description => "Enter or exit play mode, or query the current state.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("action", "string", "status", "enter, exit, or status"),

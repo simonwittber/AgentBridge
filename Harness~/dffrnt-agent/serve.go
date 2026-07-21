@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -52,23 +53,6 @@ func (s *serveState) send(cmd string, args map[string]any) (map[string]any, erro
 	return send(cfg, cmd, args)
 }
 
-var coreMCPTools = map[string]bool{
-	"status": true, "compile": true, "refresh": true, "focus": true,
-	"commands": true, "console_logs": true,
-	"hierarchy": true, "object_find": true, "objects_find": true,
-	"object_create": true, "object_delete": true, "object_active": true,
-	"object_rename": true, "object_select": true,
-	"component_get": true, "component_set": true, "component_add": true,
-	"scene_info": true, "scene_open": true, "scene_save": true, "scene_new": true,
-	"asset_write_text": true, "asset_create": true, "asset_delete": true,
-	"asset_move": true, "asset_copy": true, "asset_find": true,
-	"undo": true, "redo": true, "play_mode": true, "run_tests": true,
-	"set_transform": true, "duplicate_object": true, "reparent_object": true,
-	"profiler_start": true, "profiler_stop": true, "profiler_clear": true,
-	"profiler_set_deep": true, "profiler_get_frame": true, "profiler_get_samples": true,
-	"help": true,
-}
-
 func runServe(cfg Config) {
 	state := &serveState{cfg: cfg}
 	s := server.NewMCPServer("unity-agentbridge", "0.1.0")
@@ -90,8 +74,10 @@ func runServe(cfg Config) {
 		return mcp.NewToolResultText(string(out)), nil
 	})
 
-	if err := loadToolsFromCache(state, s); err != nil {
-		log.Printf("warning: %v — only set_project and invoke available", err)
+	if cfg.Project != defaultProject {
+		if err := loadToolsFromUnity(state, s); err != nil {
+			log.Printf("warning: could not load tools from Unity: %v", err)
+		}
 	}
 
 	screenshotTool := mcp.NewTool("screenshot",
@@ -119,6 +105,9 @@ func runServe(cfg Config) {
 			return mcp.NewToolResultText(string(out)), nil
 		}
 		imgPath, _ := resp["path"].(string)
+		if !filepath.IsAbs(imgPath) {
+			imgPath = filepath.Join(state.getConfig().Project, imgPath)
+		}
 		imgBytes, err := os.ReadFile(imgPath)
 		if err != nil {
 			return nil, fmt.Errorf("read screenshot file: %w", err)
@@ -182,21 +171,17 @@ func runServe(cfg Config) {
 	}
 }
 
-func loadToolsFromCache(state *serveState, s *server.MCPServer) error {
-	schemaFile := state.getConfig().SchemaFile
-	data, err := os.ReadFile(schemaFile)
+func loadToolsFromUnity(state *serveState, s *server.MCPServer) error {
+	resp, err := state.send("commands", nil)
 	if err != nil {
-		return fmt.Errorf("Unity unavailable and no cached schema at %s", schemaFile)
+		return fmt.Errorf("commands call failed: %w", err)
 	}
-	var cmds []any
-	if err := json.Unmarshal(data, &cmds); err != nil {
-		return fmt.Errorf("invalid schema cache: %w", err)
-	}
+	raw, _ := resp["commands"].([]any)
 	state.mu.Lock()
-	state.rawCmds = cmds
+	state.rawCmds = raw
 	state.mu.Unlock()
-	registerTools(state, s, cmds)
-	log.Printf("loaded %d tool(s) from schema cache", len(cmds))
+	registerTools(state, s, raw)
+	log.Printf("registered %d core tool(s) from Unity", len(raw))
 	return nil
 }
 
@@ -207,7 +192,8 @@ func registerTools(state *serveState, s *server.MCPServer, cmds []any) {
 			continue
 		}
 		name, _ := cmdMap["cmd"].(string)
-		if name == "" || !coreMCPTools[name] {
+		core, _ := cmdMap["core"].(bool)
+		if name == "" || !core {
 			continue
 		}
 		desc, _ := cmdMap["description"].(string)

@@ -22,6 +22,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "object_create";
             public string    Description => "Create a new GameObject, optionally as a 3D primitive.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("name",      "string", "GameObject", ""),
@@ -66,6 +67,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "object_delete";
             public string    Description => "";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "", ""),
@@ -92,6 +94,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "object_active";
             public string    Description => "";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",   "string", "",     ""),
@@ -121,6 +124,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "object_rename";
             public string    Description => "";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "", ""),
@@ -158,6 +162,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "object_select";
             public string    Description => "Select one or more GameObjects by path.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",  "string", "", "Single path"),

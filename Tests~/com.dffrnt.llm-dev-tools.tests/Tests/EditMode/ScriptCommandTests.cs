@@ -92,9 +92,9 @@ namespace LLMDevTools.Tests
         }
 
         [Test]
-        public void ExecuteScript_VoidReturn_ReturnsNullValue()
+        public void ExecuteScript_ReturnNull_ReturnsOkWithNullValue()
         {
-            var resp = AgentBridge.TestInvoke("execute_script", "{\"code\":\"var x = 1 + 1;\"}");
+            var resp = AgentBridge.TestInvoke("execute_script", "{\"code\":\"return null;\"}");
             Assert.That(resp,                               Is.Not.Null);
             Assert.That(resp["status"]?.GetValue<string>(), Is.EqualTo("ok"));
             Assert.That(resp["returnValue"]?.GetValue<string>(), Is.Null.Or.Empty);

@@ -90,6 +90,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "console_logs";
             public string    Description => "Return recent Unity console messages, newest first.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("limit", "int",    "50", ""),

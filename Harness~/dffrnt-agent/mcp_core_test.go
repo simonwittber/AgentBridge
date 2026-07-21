@@ -56,7 +56,7 @@ func TestMCP_Refresh(t *testing.T) {
 func TestMCP_UUID(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "uuid", map[string]any{})
+	p := c.invokeCmd(t, "uuid", map[string]any{})
 	if p["status"] != "ok" {
 		t.Errorf("expected ok, got %v", p["status"])
 	}

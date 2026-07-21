@@ -100,10 +100,12 @@ func launchMCPServer(binary, project string) *mcpClient {
 	if err := cmd.Start(); err != nil {
 		panic(fmt.Sprintf("start serve: %v", err))
 	}
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 4*1024*1024), 4*1024*1024) // 4 MB for large responses (e.g. base64 screenshots)
 	c := &mcpClient{
 		cmd:    cmd,
 		enc:    json.NewEncoder(stdin),
-		dec:    bufio.NewScanner(stdout),
+		dec:    scanner,
 		nextID: 1,
 	}
 	// Perform MCP handshake using a dummy testing.T-like fatal.
@@ -190,6 +192,16 @@ func (c *mcpClient) notify(t *testing.T, method string, params any) {
 		msg["params"] = params
 	}
 	c.enc.Encode(msg)
+}
+
+// invokeCmd calls a non-core Unity command through the always-registered invoke tool.
+func (c *mcpClient) invokeCmd(t *testing.T, cmd string, args map[string]any) map[string]any {
+	t.Helper()
+	argsJSON, _ := json.Marshal(args)
+	return c.callTool(t, "invoke", map[string]any{
+		"cmd":  cmd,
+		"args": string(argsJSON),
+	})
 }
 
 func (c *mcpClient) callTool(t *testing.T, name string, args map[string]any) map[string]any {

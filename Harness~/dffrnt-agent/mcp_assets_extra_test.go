@@ -21,7 +21,7 @@ func TestMCP_AssetWriteText(t *testing.T) {
 	}
 
 	// Verify asset exists.
-	info := c.callTool(t, "asset_info", map[string]any{"path": path})
+	info := c.invokeCmd(t, "asset_info", map[string]any{"path": path})
 	if info["status"] != "ok" {
 		t.Errorf("asset_info after write failed: %v", info)
 	}
@@ -44,7 +44,7 @@ func TestMCP_AssetInfo(t *testing.T) {
 	c.callTool(t, "asset_write_text", map[string]any{"path": path, "content": "hello"})
 	defer c.callTool(t, "asset_delete", map[string]any{"path": path})
 
-	p := c.callTool(t, "asset_info", map[string]any{"path": path})
+	p := c.invokeCmd(t, "asset_info", map[string]any{"path": path})
 	if p["status"] != "ok" {
 		t.Fatalf("asset_info failed: %v", p)
 	}
@@ -63,7 +63,7 @@ func TestMCP_AssetInfo(t *testing.T) {
 func TestMCP_AssetInfo_Missing(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "asset_info", map[string]any{"path": "Assets/DoesNotExist_MCP.txt"})
+	p := c.invokeCmd(t, "asset_info", map[string]any{"path": "Assets/DoesNotExist_MCP.txt"})
 	if p["status"] != "error" {
 		t.Errorf("expected error for missing asset, got %v", p["status"])
 	}
@@ -77,7 +77,7 @@ func TestMCP_AssetSet(t *testing.T) {
 	c.callTool(t, "asset_write_text", map[string]any{"path": path, "content": "data"})
 	defer c.callTool(t, "asset_delete", map[string]any{"path": path})
 
-	p := c.callTool(t, "asset_set", map[string]any{
+	p := c.invokeCmd(t, "asset_set", map[string]any{
 		"path":  path,
 		"field": "m_UserData",
 		"value": "mcp-test-value",
@@ -94,7 +94,7 @@ func TestMCP_AssetSet_InvalidField(t *testing.T) {
 	c.callTool(t, "asset_write_text", map[string]any{"path": path, "content": "data"})
 	defer c.callTool(t, "asset_delete", map[string]any{"path": path})
 
-	p := c.callTool(t, "asset_set", map[string]any{
+	p := c.invokeCmd(t, "asset_set", map[string]any{
 		"path":  path,
 		"field": "m_NonExistentField_XYZ",
 		"value": "irrelevant",

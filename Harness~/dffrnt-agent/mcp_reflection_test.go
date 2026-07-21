@@ -8,7 +8,7 @@ import (
 func TestMCP_ReflectAssemblies(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "reflect_assemblies", map[string]any{})
+	p := c.invokeCmd(t, "reflect_assemblies", map[string]any{})
 	if p["status"] != "ok" {
 		t.Errorf("expected ok, got %v", p["status"])
 	}
@@ -28,7 +28,7 @@ func TestMCP_ReflectAssemblies(t *testing.T) {
 func TestMCP_ReflectAssemblies_ContainsUnityEngine(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "reflect_assemblies", map[string]any{})
+	p := c.invokeCmd(t, "reflect_assemblies", map[string]any{})
 	asms, _ := p["assemblies"].([]any)
 	for _, raw := range asms {
 		entry, _ := raw.(map[string]any)
@@ -42,7 +42,7 @@ func TestMCP_ReflectAssemblies_ContainsUnityEngine(t *testing.T) {
 func TestMCP_ReflectTypes_QueryTransform(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "reflect_types", map[string]any{"query": "Transform"})
+	p := c.invokeCmd(t, "reflect_types", map[string]any{"query": "Transform"})
 	if p["status"] != "ok" {
 		t.Fatalf("expected ok, got %v", p["status"])
 	}
@@ -62,7 +62,7 @@ func TestMCP_ReflectTypes_QueryTransform(t *testing.T) {
 func TestMCP_ReflectTypes_Limit(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "reflect_types", map[string]any{"query": "e", "limit": 3})
+	p := c.invokeCmd(t, "reflect_types", map[string]any{"query": "e", "limit": 3})
 	if p["status"] != "ok" {
 		t.Fatalf("expected ok, got %v", p["status"])
 	}
@@ -78,7 +78,7 @@ func TestMCP_ReflectTypes_Limit(t *testing.T) {
 func TestMCP_ReflectTypes_NamespaceFilter(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "reflect_types", map[string]any{"namespace": "UnityEngine"})
+	p := c.invokeCmd(t, "reflect_types", map[string]any{"namespace": "UnityEngine"})
 	if p["status"] != "ok" {
 		t.Fatalf("expected ok, got %v", p["status"])
 	}
@@ -98,7 +98,7 @@ func TestMCP_ReflectTypes_NamespaceFilter(t *testing.T) {
 func TestMCP_ReflectMembers_Transform(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "reflect_members", map[string]any{"type": "UnityEngine.Transform"})
+	p := c.invokeCmd(t, "reflect_members", map[string]any{"type": "UnityEngine.Transform"})
 	if p["status"] != "ok" {
 		t.Fatalf("expected ok, got %v", p["status"])
 	}
@@ -123,7 +123,7 @@ func TestMCP_ReflectMembers_Transform(t *testing.T) {
 func TestMCP_ReflectMembers_MissingType_ReturnsError(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "reflect_members", map[string]any{})
+	p := c.invokeCmd(t, "reflect_members", map[string]any{})
 	if p["status"] != "error" {
 		t.Errorf("expected error for missing type, got %v", p["status"])
 	}
@@ -132,7 +132,7 @@ func TestMCP_ReflectMembers_MissingType_ReturnsError(t *testing.T) {
 func TestMCP_ReflectMembers_UnknownType_ReturnsError(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "reflect_members", map[string]any{"type": "NoSuch.TypeXyz999"})
+	p := c.invokeCmd(t, "reflect_members", map[string]any{"type": "NoSuch.TypeXyz999"})
 	if p["status"] != "error" {
 		t.Errorf("expected error for unknown type, got %v", p["status"])
 	}
@@ -141,7 +141,7 @@ func TestMCP_ReflectMembers_UnknownType_ReturnsError(t *testing.T) {
 func TestMCP_ReflectMembers_KindMethod(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "reflect_members", map[string]any{
+	p := c.invokeCmd(t, "reflect_members", map[string]any{
 		"type": "UnityEngine.Transform",
 		"kind": "method",
 	})
@@ -163,10 +163,10 @@ func TestMCP_ReflectMembers_IncludeInherited(t *testing.T) {
 	// Use UnityEngine.MonoBehaviour which has very few own members, so the
 	// default limit (100) is never hit for own-only, but inherited members from
 	// Behaviour/Component/Object make the inherited count clearly larger.
-	base := c.callTool(t, "reflect_members", map[string]any{
+	base := c.invokeCmd(t, "reflect_members", map[string]any{
 		"type": "UnityEngine.MonoBehaviour",
 	})
-	inherited := c.callTool(t, "reflect_members", map[string]any{
+	inherited := c.invokeCmd(t, "reflect_members", map[string]any{
 		"type":              "UnityEngine.MonoBehaviour",
 		"include_inherited": true,
 	})

@@ -2,8 +2,8 @@
 //
 // Usage:
 //
-//	agent [--project <path>] [--timeout <s>] [--schema <file>] <cmd> [key=value ...]
-//	agent [--project <path>] [--timeout <s>] [--schema <file>] serve
+//	agent [--project <path>] [--timeout <s>] <cmd> [key=value ...]
+//	agent [--project <path>] serve
 //
 // Exit codes (CLI mode):
 //
@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -25,22 +24,12 @@ import (
 const (
 	defaultProject = "."
 	defaultTimeout = 120.0
-	defaultSchema  = "agent_schema.json"
 )
-
-func defaultSchemaPath() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return defaultSchema
-	}
-	return filepath.Join(filepath.Dir(exe), defaultSchema)
-}
 
 func main() {
 	cfg := Config{
-		Project:    defaultProject,
-		Timeout:    defaultTimeout,
-		SchemaFile: defaultSchemaPath(),
+		Project: defaultProject,
+		Timeout: defaultTimeout,
 	}
 	var argsJSON string
 	var cmd string
@@ -66,12 +55,6 @@ func main() {
 				die("--timeout: not a number")
 			}
 			cfg.Timeout = t
-		case "--schema":
-			i++
-			if i >= len(os.Args) {
-				die("--schema requires a value")
-			}
-			cfg.SchemaFile = os.Args[i]
 		case "--unity":
 			i++
 			if i >= len(os.Args) {
@@ -100,7 +83,7 @@ func main() {
 	}
 
 	if cmd == "" {
-		fmt.Fprintln(os.Stderr, "Usage: agent [--project <path>] [--timeout <s>] [--schema <file>] <cmd> [key=value ...]")
+		fmt.Fprintln(os.Stderr, "Usage: agent [--project <path>] [--timeout <s>] <cmd> [key=value ...]")
 		fmt.Fprintln(os.Stderr, "       agent [--project <path>] serve")
 		os.Exit(1)
 	}

@@ -25,6 +25,7 @@ namespace LLMDevTools
         string     Cmd         { get; }
         string     Description => null;
         ArgSpec[]  Args        => null;
+        bool       Core        => false;
         JsonObject Execute(string uid, string requestJson);
     }
 
@@ -454,6 +455,7 @@ namespace LLMDevTools
         {
             public string Cmd         => "status";
             public string Description => "";
+            public bool   Core        => true;
             public JsonObject Execute(string uid, string requestJson)
             {
                 var resp = MakeResponse(uid, Cmd, "ok");
@@ -467,6 +469,7 @@ namespace LLMDevTools
         {
             public string Cmd         => "commands";
             public string Description => "";
+            public bool   Core        => true;
             public JsonObject Execute(string uid, string requestJson)
             {
                 var list = new JsonArray();
@@ -487,6 +490,7 @@ namespace LLMDevTools
                         ["cmd"]         = h.Cmd,
                         ["description"] = h.Description ?? "",
                         ["args"]        = args,
+                        ["core"]        = h.Core,
                     });
                 }
                 var resp = MakeResponse(uid, Cmd, "ok");
@@ -499,6 +503,7 @@ namespace LLMDevTools
         {
             public string Cmd         => "compile";
             public string Description => "Trigger script compilation; returns errors and warnings.";
+            public bool   Core        => true;
             public JsonObject Execute(string uid, string requestJson)
             {
                 _compileMessages.Clear();
@@ -514,6 +519,7 @@ namespace LLMDevTools
         {
             public string Cmd         => "refresh";
             public string Description => "";
+            public bool   Core        => true;
             public JsonObject Execute(string uid, string requestJson)
             {
                 FocusUnityWindow();
@@ -526,6 +532,7 @@ namespace LLMDevTools
         {
             public string Cmd         => "focus";
             public string Description => "Bring the Unity Editor window to the foreground.";
+            public bool   Core        => true;
             public JsonObject Execute(string uid, string requestJson)
             {
                 FocusUnityWindow();

@@ -74,12 +74,12 @@ func TestMCP_Redo(t *testing.T) {
 func TestMCP_EditorPrefSetGet(t *testing.T) {
 	c := shared
 
-	set := c.callTool(t, "editor_pref_set", map[string]any{"key": "MCP_Test_Key", "value": "hello_mcp", "type": "string"})
+	set := c.invokeCmd(t, "editor_pref_set", map[string]any{"key": "MCP_Test_Key", "value": "hello_mcp", "type": "string"})
 	if set["status"] != "ok" {
 		t.Fatalf("editor_pref_set failed: %v", set)
 	}
 
-	get := c.callTool(t, "editor_pref_get", map[string]any{"key": "MCP_Test_Key", "type": "string"})
+	get := c.invokeCmd(t, "editor_pref_get", map[string]any{"key": "MCP_Test_Key", "type": "string"})
 	if get["status"] != "ok" {
 		t.Fatalf("editor_pref_get failed: %v", get)
 	}
@@ -91,12 +91,12 @@ func TestMCP_EditorPrefSetGet(t *testing.T) {
 func TestMCP_EditorPrefSetGetInt(t *testing.T) {
 	c := shared
 
-	set := c.callTool(t, "editor_pref_set", map[string]any{"key": "MCP_Test_Int", "value": "42", "type": "int"})
+	set := c.invokeCmd(t, "editor_pref_set", map[string]any{"key": "MCP_Test_Int", "value": "42", "type": "int"})
 	if set["status"] != "ok" {
 		t.Fatalf("editor_pref_set failed: %v", set)
 	}
 
-	get := c.callTool(t, "editor_pref_get", map[string]any{"key": "MCP_Test_Int", "type": "int"})
+	get := c.invokeCmd(t, "editor_pref_get", map[string]any{"key": "MCP_Test_Int", "type": "int"})
 	if get["status"] != "ok" {
 		t.Fatalf("editor_pref_get failed: %v", get)
 	}
@@ -108,7 +108,7 @@ func TestMCP_EditorPrefSetGetInt(t *testing.T) {
 func TestMCP_PlayerSettingsGet(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "player_settings_get", map[string]any{})
+	p := c.invokeCmd(t, "player_settings_get", map[string]any{})
 	if p["status"] != "ok" {
 		t.Fatalf("player_settings_get failed: %v", p)
 	}
@@ -123,13 +123,13 @@ func TestMCP_PlayerSettingsGet(t *testing.T) {
 func TestMCP_PlayerSettingsSetGet(t *testing.T) {
 	c := shared
 
-	set := c.callTool(t, "player_settings_set", map[string]any{"key": "bundleVersion", "value": "1.2.3-mcp-test"})
+	set := c.invokeCmd(t, "player_settings_set", map[string]any{"key": "bundleVersion", "value": "1.2.3-mcp-test"})
 	if set["status"] != "ok" {
 		t.Fatalf("player_settings_set failed: %v", set)
 	}
-	defer c.callTool(t, "player_settings_set", map[string]any{"key": "bundleVersion", "value": "0.1"})
+	defer c.invokeCmd(t, "player_settings_set", map[string]any{"key": "bundleVersion", "value": "0.1"})
 
-	get := c.callTool(t, "player_settings_get", map[string]any{})
+	get := c.invokeCmd(t, "player_settings_get", map[string]any{})
 	if get["status"] != "ok" {
 		t.Fatalf("player_settings_get failed: %v", get)
 	}
@@ -141,7 +141,7 @@ func TestMCP_PlayerSettingsSetGet(t *testing.T) {
 func TestMCP_SelectionGet(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "selection_get", map[string]any{})
+	p := c.invokeCmd(t, "selection_get", map[string]any{})
 	if p["status"] != "ok" {
 		t.Fatalf("selection_get failed: %v", p)
 	}

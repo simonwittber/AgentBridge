@@ -11,7 +11,7 @@ func TestMCP_MaterialGet(t *testing.T) {
 	c.callTool(t, "asset_create", map[string]any{"type": "material", "path": path})
 	defer c.callTool(t, "asset_delete", map[string]any{"path": path})
 
-	p := c.callTool(t, "material_get", map[string]any{"path": path})
+	p := c.invokeCmd(t, "material_get", map[string]any{"path": path})
 	if p["status"] != "ok" {
 		t.Fatalf("material_get failed: %v", p)
 	}
@@ -26,7 +26,7 @@ func TestMCP_MaterialGet(t *testing.T) {
 func TestMCP_MaterialGet_Missing(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "material_get", map[string]any{"path": "Assets/DoesNotExist_MCP.mat"})
+	p := c.invokeCmd(t, "material_get", map[string]any{"path": "Assets/DoesNotExist_MCP.mat"})
 	if p["status"] != "error" {
 		t.Errorf("expected error for missing material, got %v", p["status"])
 	}
@@ -40,7 +40,7 @@ func TestMCP_MaterialSet(t *testing.T) {
 	defer c.callTool(t, "asset_delete", map[string]any{"path": path})
 
 	// Standard shader has _Color property.
-	p := c.callTool(t, "material_set", map[string]any{
+	p := c.invokeCmd(t, "material_set", map[string]any{
 		"path":     path,
 		"property": "_Color",
 		"value":    map[string]any{"r": 1.0, "g": 0.0, "b": 0.5, "a": 1.0},
@@ -50,7 +50,7 @@ func TestMCP_MaterialSet(t *testing.T) {
 	}
 
 	// Verify the change.
-	get := c.callTool(t, "material_get", map[string]any{"path": path})
+	get := c.invokeCmd(t, "material_get", map[string]any{"path": path})
 	if get["status"] != "ok" {
 		t.Fatalf("material_get after set failed: %v", get)
 	}
@@ -69,7 +69,7 @@ func TestMCP_MaterialSet_InvalidProperty(t *testing.T) {
 	c.callTool(t, "asset_create", map[string]any{"type": "material", "path": path})
 	defer c.callTool(t, "asset_delete", map[string]any{"path": path})
 
-	p := c.callTool(t, "material_set", map[string]any{
+	p := c.invokeCmd(t, "material_set", map[string]any{
 		"path":     path,
 		"property": "_NonExistentProp_XYZ",
 		"value":    1.0,

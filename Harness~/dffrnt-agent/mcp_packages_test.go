@@ -7,7 +7,7 @@ import (
 func TestMCP_PackageList(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "package_list", map[string]any{})
+	p := c.invokeCmd(t, "package_list", map[string]any{})
 	if p["status"] != "ok" {
 		t.Fatalf("package_list failed: %v", p)
 	}
@@ -30,7 +30,7 @@ func TestMCP_PackageList(t *testing.T) {
 func TestMCP_PackageSearch(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "package_search", map[string]any{"query": "com.unity.ugui"})
+	p := c.invokeCmd(t, "package_search", map[string]any{"query": "com.unity.ugui"})
 	if p["status"] != "ok" {
 		t.Fatalf("package_search failed: %v", p)
 	}
@@ -54,7 +54,7 @@ func TestMCP_PackageSearch(t *testing.T) {
 func TestMCP_PackageSearchMissingQuery(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "package_search", map[string]any{})
+	p := c.invokeCmd(t, "package_search", map[string]any{})
 	if p["status"] != "error" {
 		t.Errorf("expected error for missing query, got %v", p["status"])
 	}
@@ -66,7 +66,7 @@ func TestMCP_PackageAddRemove(t *testing.T) {
 	// Use a lightweight, well-known package unlikely to already be installed at this exact version.
 	const identifier = "com.unity.modules.particlesystem"
 
-	add := c.callTool(t, "package_add", map[string]any{"identifier": identifier})
+	add := c.invokeCmd(t, "package_add", map[string]any{"identifier": identifier})
 	if add["status"] != "ok" {
 		t.Fatalf("package_add failed: %v", add)
 	}
@@ -81,7 +81,7 @@ func TestMCP_PackageAddRemove(t *testing.T) {
 func TestMCP_PackageRemove_NotInstalled(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "package_remove", map[string]any{"name": "com.unity.package.that.does.not.exist"})
+	p := c.invokeCmd(t, "package_remove", map[string]any{"name": "com.unity.package.that.does.not.exist"})
 	if p["status"] != "error" {
 		t.Errorf("expected error removing non-existent package, got %v", p["status"])
 	}
@@ -90,7 +90,7 @@ func TestMCP_PackageRemove_NotInstalled(t *testing.T) {
 func TestMCP_PackageRemoveMissingName(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "package_remove", map[string]any{})
+	p := c.invokeCmd(t, "package_remove", map[string]any{})
 	if p["status"] != "error" {
 		t.Errorf("expected error for missing name, got %v", p["status"])
 	}
@@ -99,7 +99,7 @@ func TestMCP_PackageRemoveMissingName(t *testing.T) {
 func TestMCP_PackageAddMissingIdentifier(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "package_add", map[string]any{})
+	p := c.invokeCmd(t, "package_add", map[string]any{})
 	if p["status"] != "error" {
 		t.Errorf("expected error for missing identifier, got %v", p["status"])
 	}

@@ -21,6 +21,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "asset_create";
             public string    Description => "Create a new folder or material asset at the given path.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "", ""),
@@ -73,6 +74,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "asset_write_text";
             public string    Description => "Write a text file under Assets/ and reimport. Creates parent folders automatically.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",    "string", "", ""),
@@ -130,6 +132,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "asset_delete";
             public string    Description => "";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "", ""),
@@ -155,6 +158,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "asset_move";
             public string    Description => "";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("from", "string", "", ""),
@@ -183,6 +187,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "asset_copy";
             public string    Description => "";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("from", "string", "", ""),

@@ -19,6 +19,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "run_tests";
             public string    Description => "Run Unity edit-mode or play-mode tests.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("mode",     "string", "EditMode", "EditMode or PlayMode"),

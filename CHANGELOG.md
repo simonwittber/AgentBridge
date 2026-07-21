@@ -4,13 +4,19 @@
 
 ### Added
 - Transform tools: `set_transform`, `duplicate_object`, `reparent_object`
-- Profiler tools: `profiler_start`, `profiler_stop`, `profiler_clear`, `profiler_set_deep`, `profiler_get_frame`, `profiler_get_samples`
+- Profiler tools: `profiler_start`, `profiler_stop`, `profiler_clear`, `profiler_get_samples` using `Unity.Profiling.ProfilerRecorder`
 - `help` tool: returns full description and argument details for any command on demand
 - `screenshot` now returns the image inline (base64 PNG) with optional `max_size` downscale
 - `execute_script`: compile and run C# code snippets in the Editor
+- `IAgentCommand.Core` property: command classes declare themselves as core with `bool Core => true`
+- Go integration tests for profiler commands and `execute_script`
 
 ### Changed
 - MCP tools/list context cost reduced by 31% (from ~3,000 to ~2,063 tokens) by moving argument descriptions behind the `help` tool
+- `serve.go` now loads core tools dynamically from Unity at startup via `commands` instead of a hardcoded allowlist. No Go recompile needed when adding new Unity commands.
+- `agent_schema.json` removed; no offline schema cache needed.
+- Dropped `profiler_set_deep` and `profiler_get_frame` (required internal Unity APIs with no public equivalent)
+- Removed `--schema` CLI flag from `dffrnt-agent`
 
 ## [0.1.0] - 2026-07-20
 

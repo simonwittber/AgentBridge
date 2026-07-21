@@ -21,6 +21,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "hierarchy";
             public string    Description => "List the scene GameObject hierarchy as a tree.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("root",  "string", "",  "Omit for all roots"),
@@ -66,6 +67,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "object_find";
             public string    Description => "Find a GameObject by path; returns info and component list.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "", ""),
@@ -93,6 +95,7 @@ namespace LLMDevTools
         {
             public string    Cmd         => "objects_find";
             public string    Description => "Find all GameObjects in the scene that have a given component type.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("component",        "string", "",      ""),

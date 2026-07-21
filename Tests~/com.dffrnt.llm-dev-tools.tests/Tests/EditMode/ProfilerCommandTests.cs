@@ -5,18 +5,32 @@ namespace LLMDevTools.Tests
     [TestFixture]
     public class ProfilerCommandTests
     {
-        // ── control commands ──────────────────────────────────────────────────
+        [TearDown]
+        public void TearDown()
+        {
+            AgentBridge.TestInvoke("profiler_clear", "{}");
+        }
 
         [Test]
-        public void ProfilerStart_ReturnsOk()
+        public void ProfilerStart_DefaultMarkers_ReturnsOk()
         {
             var resp = AgentBridge.TestInvoke("profiler_start", "{}");
             Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
+            Assert.That(resp?["markers"]?.AsArray().Count, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void ProfilerStart_CustomMarkers_ReturnsOk()
+        {
+            var resp = AgentBridge.TestInvoke("profiler_start", "{\"markers\":[\"Main Thread\"]}");
+            Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
+            Assert.That(resp?["markers"]?.AsArray().Count, Is.EqualTo(1));
         }
 
         [Test]
         public void ProfilerStop_ReturnsOk()
         {
+            AgentBridge.TestInvoke("profiler_start", "{}");
             var resp = AgentBridge.TestInvoke("profiler_stop", "{}");
             Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
         }
@@ -24,63 +38,55 @@ namespace LLMDevTools.Tests
         [Test]
         public void ProfilerClear_ReturnsOk()
         {
+            AgentBridge.TestInvoke("profiler_start", "{}");
             var resp = AgentBridge.TestInvoke("profiler_clear", "{}");
             Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
         }
 
         [Test]
-        public void ProfilerSetDeep_Enable_ReturnsOk()
+        public void ProfilerGetSamples_AfterStart_ReturnsOk()
         {
-            var resp = AgentBridge.TestInvoke("profiler_set_deep", "{\"enabled\":true}");
+            AgentBridge.TestInvoke("profiler_start", "{}");
+            var resp = AgentBridge.TestInvoke("profiler_get_samples", "{}");
             Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
-            Assert.That(resp?["deepProfiling"]?.GetValue<bool>(), Is.True);
+            Assert.That(resp?["markers"], Is.Not.Null);
         }
 
         [Test]
-        public void ProfilerSetDeep_Disable_ReturnsOk()
+        public void ProfilerGetSamples_MarkerFilter_ReturnsSingleEntry()
         {
-            var resp = AgentBridge.TestInvoke("profiler_set_deep", "{\"enabled\":false}");
+            AgentBridge.TestInvoke("profiler_start", "{\"markers\":[\"Main Thread\",\"GC.Alloc\"]}");
+            var resp = AgentBridge.TestInvoke("profiler_get_samples", "{\"marker\":\"Main Thread\"}");
             Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
-            Assert.That(resp?["deepProfiling"]?.GetValue<bool>(), Is.False);
+            Assert.That(resp?["markers"]?.AsArray().Count, Is.EqualTo(1));
         }
 
-        // ── no-data error handling ────────────────────────────────────────────
-
         [Test]
-        public void ProfilerGetFrame_NoData_ReturnsError()
+        public void ProfilerGetSamples_UnknownMarker_ReturnsError()
         {
-            AgentBridge.TestInvoke("profiler_clear", "{}");
-            var resp = AgentBridge.TestInvoke("profiler_get_frame", "{}");
-            // Without captured data the frame index is -1 and we expect an error.
-            if (resp?["status"]?.GetValue<string>() == "error")
-                Assert.Pass();
-            else
-                Assert.Pass(); // Data may already exist from a previous session — that is also valid.
+            AgentBridge.TestInvoke("profiler_start", "{}");
+            var resp = AgentBridge.TestInvoke("profiler_get_samples", "{\"marker\":\"NonExistentMarker_XYZ\"}");
+            Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("error"));
         }
 
         [Test]
-        public void ProfilerGetSamples_NoData_ReturnsError()
+        public void ProfilerGetSamples_WithRaw_IncludesSamplesField()
+        {
+            AgentBridge.TestInvoke("profiler_start", "{\"markers\":[\"Main Thread\"]}");
+            var resp = AgentBridge.TestInvoke("profiler_get_samples", "{\"marker\":\"Main Thread\",\"raw\":true}");
+            Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
+            var markers = resp?["markers"]?.AsArray();
+            Assert.That(markers?.Count, Is.EqualTo(1));
+            Assert.That(markers?[0]?["samples"], Is.Not.Null);
+        }
+
+        [Test]
+        public void ProfilerGetSamples_BeforeStart_ReturnsOkWithEmptyMarkers()
         {
             AgentBridge.TestInvoke("profiler_clear", "{}");
             var resp = AgentBridge.TestInvoke("profiler_get_samples", "{}");
-            if (resp?["status"]?.GetValue<string>() == "error")
-                Assert.Pass();
-            else
-                Assert.Pass();
-        }
-
-        [Test]
-        public void ProfilerGetFrame_OutOfRange_ReturnsError()
-        {
-            var resp = AgentBridge.TestInvoke("profiler_get_frame", "{\"frame\":999999}");
-            Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("error"));
-        }
-
-        [Test]
-        public void ProfilerGetSamples_OutOfRange_ReturnsError()
-        {
-            var resp = AgentBridge.TestInvoke("profiler_get_samples", "{\"frame\":999999}");
-            Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("error"));
+            Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
+            Assert.That(resp?["markers"]?.AsArray().Count, Is.EqualTo(0));
         }
     }
 }

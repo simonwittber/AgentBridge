@@ -13,10 +13,9 @@ import (
 const pollInterval = 250 * time.Millisecond
 
 type Config struct {
-	Project    string
-	Timeout    float64
-	SchemaFile string
-	UnityPath  string
+	Project   string
+	Timeout   float64
+	UnityPath string
 }
 
 func (c Config) tempDir() string     { return filepath.Join(c.Project, "Temp") }
