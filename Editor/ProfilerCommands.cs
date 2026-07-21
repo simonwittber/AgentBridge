@@ -8,9 +8,6 @@ namespace LLMDevTools
     [InitializeOnLoad]
     internal static class ProfilerCommands
     {
-        static readonly string[] DefaultMarkers =
-            { "Main Thread", "Render Thread", "PlayerLoop", "GC.Alloc" };
-
         static readonly Dictionary<string, ProfilerRecorder> s_recorders = new();
 
         static ProfilerCommands()
@@ -36,31 +33,34 @@ namespace LLMDevTools
         private sealed class ProfilerStartCmd : IAgentCommand
         {
             public string    Cmd         => "profiler_start";
-            public string    Description => "Begin recording named profiler markers.";
+            public string    Description => "Begin recording named Profiler.BeginSample markers (ProfilerCategory.Scripts).";
             public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("markers", "any", "", "JSON array of marker name strings; omit for defaults"),
+                new ArgSpec("markers", "any", "", "JSON array of marker name strings to record"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
             {
-                var req = JsonNode.Parse(requestJson);
-
-                string[] names = DefaultMarkers;
+                var req         = JsonNode.Parse(requestJson);
                 var markersNode = req?["markers"]?.AsArray();
-                if (markersNode != null && markersNode.Count > 0)
+
+                if (markersNode == null || markersNode.Count == 0)
                 {
-                    names = new string[markersNode.Count];
-                    for (int i = 0; i < markersNode.Count; i++)
-                        names[i] = markersNode[i]?.GetValue<string>() ?? "";
+                    var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                    err["message"] = "markers is required: pass a JSON array of Profiler.BeginSample marker names.";
+                    return err;
                 }
+
+                var names = new string[markersNode.Count];
+                for (int i = 0; i < markersNode.Count; i++)
+                    names[i] = markersNode[i]?.GetValue<string>() ?? "";
 
                 DisposeAll();
                 foreach (var name in names)
                 {
                     if (string.IsNullOrEmpty(name)) continue;
-                    s_recorders[name] = ProfilerRecorder.StartNew(ProfilerCategory.Internal, name, 300);
+                    s_recorders[name] = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, name, 300);
                 }
 
                 var markerArr = new JsonArray();

@@ -9,7 +9,7 @@
 - `screenshot` now returns the image inline (base64 PNG) with optional `max_size` downscale
 - `execute_script`: compile and run C# code snippets in the Editor
 - `IAgentCommand.Core` property: command classes declare themselves as core with `bool Core => true`
-- Go integration tests for profiler commands and `execute_script`
+- Go integration tests for profiler commands and `execute_script`, including a live data-capture test that fires a `ProfilerMarker` and verifies `sampleCount > 0`
 
 ### Changed
 - MCP tools/list context cost reduced by 31% (from ~3,000 to ~2,063 tokens) by moving argument descriptions behind the `help` tool

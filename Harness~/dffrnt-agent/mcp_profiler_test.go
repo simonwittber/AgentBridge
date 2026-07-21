@@ -4,29 +4,24 @@ import (
 	"testing"
 )
 
-func TestMCP_ProfilerStart_DefaultMarkers(t *testing.T) {
+func TestMCP_ProfilerStart_NoMarkers_ReturnsError(t *testing.T) {
 	c := shared
-	defer c.callTool(t, "profiler_clear", map[string]any{})
 
 	p := c.callTool(t, "profiler_start", map[string]any{})
-	if p["status"] != "ok" {
-		t.Fatalf("profiler_start failed: %v", p)
-	}
-	markers, _ := p["markers"].([]any)
-	if len(markers) == 0 {
-		t.Error("expected at least one marker")
+	if p["status"] != "error" {
+		t.Errorf("expected error for missing markers, got %v", p["status"])
 	}
 }
 
-func TestMCP_ProfilerStart_CustomMarkers(t *testing.T) {
+func TestMCP_ProfilerStart_WithMarkers(t *testing.T) {
 	c := shared
 	defer c.callTool(t, "profiler_clear", map[string]any{})
 
 	p := c.callTool(t, "profiler_start", map[string]any{
-		"markers": []any{"Main Thread"},
+		"markers": []any{"MyMarker"},
 	})
 	if p["status"] != "ok" {
-		t.Fatalf("profiler_start custom markers failed: %v", p)
+		t.Fatalf("profiler_start failed: %v", p)
 	}
 	markers, _ := p["markers"].([]any)
 	if len(markers) != 1 {
@@ -38,7 +33,7 @@ func TestMCP_ProfilerStop(t *testing.T) {
 	c := shared
 	defer c.callTool(t, "profiler_clear", map[string]any{})
 
-	c.callTool(t, "profiler_start", map[string]any{})
+	c.callTool(t, "profiler_start", map[string]any{"markers": []any{"MyMarker"}})
 	p := c.callTool(t, "profiler_stop", map[string]any{})
 	if p["status"] != "ok" {
 		t.Fatalf("profiler_stop failed: %v", p)
@@ -48,7 +43,7 @@ func TestMCP_ProfilerStop(t *testing.T) {
 func TestMCP_ProfilerClear(t *testing.T) {
 	c := shared
 
-	c.callTool(t, "profiler_start", map[string]any{})
+	c.callTool(t, "profiler_start", map[string]any{"markers": []any{"MyMarker"}})
 	p := c.callTool(t, "profiler_clear", map[string]any{})
 	if p["status"] != "ok" {
 		t.Fatalf("profiler_clear failed: %v", p)
@@ -59,8 +54,8 @@ func TestMCP_ProfilerGetSamples_AfterStart(t *testing.T) {
 	c := shared
 	defer c.callTool(t, "profiler_clear", map[string]any{})
 
-	c.callTool(t, "profiler_start", map[string]any{})
-	p := c.callTool(t, "profiler_get_samples", map[string]any{})
+	c.callTool(t, "profiler_start", map[string]any{"markers": []any{"MyMarker"}})
+	p := c.callTool(t, "profiler_get_samples", map[string]any{"marker": "MyMarker"})
 	if p["status"] != "ok" {
 		t.Fatalf("profiler_get_samples failed: %v", p)
 	}
@@ -74,9 +69,9 @@ func TestMCP_ProfilerGetSamples_MarkerFilter(t *testing.T) {
 	defer c.callTool(t, "profiler_clear", map[string]any{})
 
 	c.callTool(t, "profiler_start", map[string]any{
-		"markers": []any{"Main Thread", "GC.Alloc"},
+		"markers": []any{"MyMarker", "OtherMarker"},
 	})
-	p := c.callTool(t, "profiler_get_samples", map[string]any{"marker": "Main Thread"})
+	p := c.callTool(t, "profiler_get_samples", map[string]any{"marker": "MyMarker"})
 	if p["status"] != "ok" {
 		t.Fatalf("profiler_get_samples with filter failed: %v", p)
 	}
@@ -90,7 +85,7 @@ func TestMCP_ProfilerGetSamples_UnknownMarker(t *testing.T) {
 	c := shared
 	defer c.callTool(t, "profiler_clear", map[string]any{})
 
-	c.callTool(t, "profiler_start", map[string]any{})
+	c.callTool(t, "profiler_start", map[string]any{"markers": []any{"MyMarker"}})
 	p := c.callTool(t, "profiler_get_samples", map[string]any{"marker": "NonExistentMarker_XYZ"})
 	if p["status"] != "error" {
 		t.Errorf("expected error for unknown marker, got %v", p["status"])
@@ -101,11 +96,9 @@ func TestMCP_ProfilerGetSamples_WithRaw(t *testing.T) {
 	c := shared
 	defer c.callTool(t, "profiler_clear", map[string]any{})
 
-	c.callTool(t, "profiler_start", map[string]any{
-		"markers": []any{"Main Thread"},
-	})
+	c.callTool(t, "profiler_start", map[string]any{"markers": []any{"MyMarker"}})
 	p := c.callTool(t, "profiler_get_samples", map[string]any{
-		"marker": "Main Thread",
+		"marker": "MyMarker",
 		"raw":    true,
 	})
 	if p["status"] != "ok" {
@@ -118,6 +111,40 @@ func TestMCP_ProfilerGetSamples_WithRaw(t *testing.T) {
 	entry, _ := markers[0].(map[string]any)
 	if entry["samples"] == nil {
 		t.Error("expected samples field when raw=true")
+	}
+}
+
+func TestMCP_ProfilerGetSamples_CapturesData(t *testing.T) {
+	c := shared
+	defer c.callTool(t, "profiler_clear", map[string]any{})
+
+	const markerCode = `var m = new Unity.Profiling.ProfilerMarker(Unity.Profiling.ProfilerCategory.Scripts, "MyTestMarker");
+for (int i = 0; i < 5; i++) { m.Begin(); m.End(); }
+return null;`
+
+	// Fire the marker once to register it with the profiler system before starting the recorder.
+	c.invokeCmd(t, "execute_script", map[string]any{"code": markerCode})
+
+	c.callTool(t, "profiler_start", map[string]any{"markers": []any{"MyTestMarker"}})
+
+	// Fire the marker again so the recorder captures samples.
+	c.invokeCmd(t, "execute_script", map[string]any{"code": markerCode})
+
+	p := c.callTool(t, "profiler_get_samples", map[string]any{"marker": "MyTestMarker"})
+	if p["status"] != "ok" {
+		t.Fatalf("profiler_get_samples failed: %v", p)
+	}
+	markers, _ := p["markers"].([]any)
+	if len(markers) != 1 {
+		t.Fatalf("expected 1 marker entry, got %d", len(markers))
+	}
+	entry, _ := markers[0].(map[string]any)
+	if entry["valid"] != true {
+		t.Errorf("expected valid=true, got %v", entry["valid"])
+	}
+	count, _ := entry["sampleCount"].(float64)
+	if count == 0 {
+		t.Errorf("expected sampleCount > 0, got %v", count)
 	}
 }
 

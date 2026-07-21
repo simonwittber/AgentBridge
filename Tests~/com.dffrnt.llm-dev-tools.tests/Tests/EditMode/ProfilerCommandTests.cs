@@ -12,11 +12,10 @@ namespace LLMDevTools.Tests
         }
 
         [Test]
-        public void ProfilerStart_DefaultMarkers_ReturnsOk()
+        public void ProfilerStart_NoMarkers_ReturnsError()
         {
             var resp = AgentBridge.TestInvoke("profiler_start", "{}");
-            Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
-            Assert.That(resp?["markers"]?.AsArray().Count, Is.GreaterThan(0));
+            Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("error"));
         }
 
         [Test]
@@ -30,7 +29,7 @@ namespace LLMDevTools.Tests
         [Test]
         public void ProfilerStop_ReturnsOk()
         {
-            AgentBridge.TestInvoke("profiler_start", "{}");
+            AgentBridge.TestInvoke("profiler_start", "{\"markers\":[\"MyMarker\"]}");
             var resp = AgentBridge.TestInvoke("profiler_stop", "{}");
             Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
         }
@@ -38,7 +37,7 @@ namespace LLMDevTools.Tests
         [Test]
         public void ProfilerClear_ReturnsOk()
         {
-            AgentBridge.TestInvoke("profiler_start", "{}");
+            AgentBridge.TestInvoke("profiler_start", "{\"markers\":[\"MyMarker\"]}");
             var resp = AgentBridge.TestInvoke("profiler_clear", "{}");
             Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
         }
@@ -46,8 +45,8 @@ namespace LLMDevTools.Tests
         [Test]
         public void ProfilerGetSamples_AfterStart_ReturnsOk()
         {
-            AgentBridge.TestInvoke("profiler_start", "{}");
-            var resp = AgentBridge.TestInvoke("profiler_get_samples", "{}");
+            AgentBridge.TestInvoke("profiler_start", "{\"markers\":[\"MyMarker\"]}");
+            var resp = AgentBridge.TestInvoke("profiler_get_samples", "{\"marker\":\"MyMarker\"}");
             Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("ok"));
             Assert.That(resp?["markers"], Is.Not.Null);
         }
@@ -64,7 +63,7 @@ namespace LLMDevTools.Tests
         [Test]
         public void ProfilerGetSamples_UnknownMarker_ReturnsError()
         {
-            AgentBridge.TestInvoke("profiler_start", "{}");
+            AgentBridge.TestInvoke("profiler_start", "{\"markers\":[\"MyMarker\"]}");
             var resp = AgentBridge.TestInvoke("profiler_get_samples", "{\"marker\":\"NonExistentMarker_XYZ\"}");
             Assert.That(resp?["status"]?.GetValue<string>(), Is.EqualTo("error"));
         }
