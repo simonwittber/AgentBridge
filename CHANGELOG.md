@@ -2,17 +2,17 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-22
+
 ### Added
 - Transform tools: `set_transform`, `duplicate_object`, `reparent_object`
 - Profiler tools: `profiler_start`, `profiler_stop`, `profiler_clear`, `profiler_get_samples` using `Unity.Profiling.ProfilerRecorder`
+- `profiler_benchmark`: fires a named `ProfilerMarker` with real CPU work to produce measurable timing samples (use with `profiler_start`)
 - `help` tool: returns full description and argument details for any command on demand
 - `screenshot` now returns the image inline (base64 PNG) with optional `max_size` downscale
 - `execute_script`: compile and run C# code snippets in the Editor
 - `IAgentCommand.Core` property: command classes declare themselves as core with `bool Core => true`
 - Go integration tests for profiler commands and `execute_script`, including a live data-capture test that fires a `ProfilerMarker` and verifies `sampleCount > 0`
-
-### Added
-- `profiler_benchmark`: fires a named `ProfilerMarker` with real CPU work to produce measurable timing samples (use with `profiler_start`)
 
 ### Changed
 - `play_mode` (single command with `action` parameter) replaced by `play_enter` and `play_exit` (no arguments each)
@@ -44,4 +44,5 @@
 - Tags and layers: `tags_layers`, `tag_add`, `layer_add`
 - Build: `build`
 
+[0.2.0]: https://github.com/simonwittber/AgentBridge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/simonwittber/AgentBridge/releases/tag/v0.1.0
