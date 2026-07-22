@@ -194,14 +194,10 @@ func (c *mcpClient) notify(t *testing.T, method string, params any) {
 	c.enc.Encode(msg)
 }
 
-// invokeCmd calls a non-core Unity command through the always-registered invoke tool.
+// invokeCmd calls a named Unity MCP tool directly.
 func (c *mcpClient) invokeCmd(t *testing.T, cmd string, args map[string]any) map[string]any {
 	t.Helper()
-	argsJSON, _ := json.Marshal(args)
-	return c.callTool(t, "invoke", map[string]any{
-		"cmd":  cmd,
-		"args": string(argsJSON),
-	})
+	return c.callTool(t, cmd, args)
 }
 
 func (c *mcpClient) callTool(t *testing.T, name string, args map[string]any) map[string]any {

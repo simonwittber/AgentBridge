@@ -22,17 +22,6 @@ var fixedTools = []mcpTool{
 		},
 	},
 	{
-		Name:        "invoke",
-		Description: "Call any Unity command by name.",
-		InputSchema: mcpInputSchema{
-			Type: "object",
-			Properties: map[string]mcpProperty{
-				"cmd":  {Type: "string"},
-				"args": {Type: "string"},
-			},
-		},
-	},
-	{
 		Name:        "screenshot",
 		Description: "Render scene view or main camera to a PNG.",
 		InputSchema: mcpInputSchema{

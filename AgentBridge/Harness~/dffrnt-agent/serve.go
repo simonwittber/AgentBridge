@@ -74,31 +74,6 @@ func runServe(cfg Config) {
 		}
 	}
 
-	invokeTool := mcp.NewTool("invoke",
-		mcp.WithDescription("Call any Unity command by name."),
-		mcp.WithString("cmd"),
-		mcp.WithString("args"),
-	)
-	s.AddTool(invokeTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		toolArgs, _ := req.Params.Arguments.(map[string]any)
-		cmd, _ := toolArgs["cmd"].(string)
-		if cmd == "" {
-			return nil, fmt.Errorf("cmd is required")
-		}
-		args := map[string]any{}
-		if argsStr, _ := toolArgs["args"].(string); argsStr != "" {
-			if err := json.Unmarshal([]byte(argsStr), &args); err != nil {
-				return nil, fmt.Errorf("args: invalid JSON: %w", err)
-			}
-		}
-		resp, err := state.send(cmd, args)
-		if err != nil {
-			return nil, err
-		}
-		out, _ := json.MarshalIndent(resp, "", "  ")
-		return mcp.NewToolResultText(string(out)), nil
-	})
-
 	helpTool := mcp.NewTool("help",
 		mcp.WithDescription("Get full description and argument details for any command. Omit command to list all available commands."),
 		mcp.WithString("command", mcp.Description("Command name to look up")),
