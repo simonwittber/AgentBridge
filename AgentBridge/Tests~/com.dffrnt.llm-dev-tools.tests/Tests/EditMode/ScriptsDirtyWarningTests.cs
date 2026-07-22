@@ -42,7 +42,7 @@ namespace LLMDevTools.Tests
         [TestCase("refresh")]
         [TestCase("status")]
         [TestCase("focus")]
-        [TestCase("commands")]
+        [TestCase("list_commands")]
         [TestCase("asset_write_text")]
         public void Warning_SuppressedForExcludedCommands(string cmd)
         {
