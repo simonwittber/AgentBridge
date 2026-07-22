@@ -1,4 +1,4 @@
-# LLM Dev Tools
+# AgentBridge
 
 Unity Editor tooling for AI-assisted development. `AgentBridge` exposes a
 file-based command protocol so external tools (Claude Code, scripts, CI) can
@@ -9,16 +9,16 @@ call directly.
 
 ### 1. Install the package
 
-**Window → Package Manager → + → Add package from git URL**
+**Window > Package Manager > + > Add package from git URL**
 
 ```
-https://github.com/simonwittber/AgentBridge.git
+https://github.com/simonwittber/AgentBridge.git?path=/AgentBridge
 ```
 
-Or for a specific version:
+For a specific version:
 
 ```
-https://github.com/simonwittber/AgentBridge.git#v0.1.0
+https://github.com/simonwittber/AgentBridge.git?path=/AgentBridge#v0.2.0
 ```
 
 ### 2. Build the CLI
@@ -27,7 +27,7 @@ Download a pre-built binary from the [latest release](https://github.com/simonwi
 and place it on your `PATH`. Or build from source:
 
 ```bash
-cd path/to/AgentBridge/Harness~/dffrnt-agent
+cd AgentBridge/Harness~/dffrnt-agent
 go build -o dffrnt-agent .        # macOS / Linux
 go build -o dffrnt-agent.exe .    # Windows
 ```
@@ -78,7 +78,7 @@ Expected output:
 ## Requirements
 
 - Unity 6000.0 or later
-- Go 1.25+ (only needed to build from source)
+- Go 1.23+ (only needed to build from source)
 
 ---
 
@@ -89,9 +89,10 @@ Expected output:
 | Command | Description |
 |---|---|
 | `status` | Bridge liveness, uptime, queue depth |
-| `compile` | Request script compilation; returns structured errors and warnings |
+| `compile` | Request script compilation; returns errors and warnings |
 | `refresh` | Trigger `AssetDatabase.Refresh()` and wait for completion |
-| `commands` | List all available commands and their arguments |
+| `list_commands` | List all available commands and their arguments |
+| `help` | Full description and argument details for a named command |
 | `focus` | Bring the Unity Editor window to the foreground |
 
 ### Scene
@@ -114,7 +115,10 @@ Expected output:
 | `object_delete` | Delete a GameObject |
 | `object_active` | Activate or deactivate a GameObject |
 | `object_rename` | Rename a GameObject |
-| `object_select` | Select one or more objects in the editor |
+| `object_select` | Select one or more objects in the Editor |
+| `duplicate_object` | Duplicate a GameObject |
+| `reparent_object` | Move a GameObject to a new parent |
+| `set_transform` | Set position, rotation, and scale in one call |
 
 ### Components & assets
 
@@ -132,7 +136,7 @@ Expected output:
 | `asset_delete` | Delete an asset |
 | `asset_move` | Move an asset to a new path |
 | `asset_copy` | Copy an asset to a new path |
-| `asset_write_text` | Write a text file (script, shader, JSON, etc.) under `Assets/` and reimport |
+| `asset_write_text` | Write a text file under `Assets/` and reimport |
 | `material_get` | Get all shader properties of a material |
 | `material_set` | Set a shader property on a material |
 
@@ -140,15 +144,28 @@ Expected output:
 
 | Command | Description |
 |---|---|
-| `console_logs` | Recent Unity console messages (ring buffer, newest first) |
-| `play_mode` | Enter, exit, or query play mode |
+| `console_logs` | All Unity console messages (ring buffer, newest first) |
+| `play_enter` | Enter play mode |
+| `play_exit` | Exit play mode |
 | `menu_item` | Invoke a Unity menu item by path |
-| `run_tests` | Run edit-mode or play-mode tests; returns pass/fail/skip |
-| `screenshot` | Render the scene view or main camera to a PNG file |
+| `run_editor_tests` | Run edit-mode tests; returns pass/fail/skip |
+| `run_playmode_tests` | Run play-mode tests; returns pass/fail/skip |
+| `screenshot` | Render scene view or main camera to PNG; returns base64 inline |
+| `execute_script` | Compile and run a C# snippet in the Editor |
 | `selection_get` | Return the currently selected GameObjects and assets |
-| `undo` | Perform an undo operation in the editor |
-| `redo` | Perform a redo operation in the editor |
+| `undo` | Perform an undo operation |
+| `redo` | Perform a redo operation |
 | `uuid` | Generate a UUID v4 |
+
+### Profiler
+
+| Command | Description |
+|---|---|
+| `profiler_start` | Begin recording named `ProfilerMarker` samples |
+| `profiler_stop` | Stop the current recording session |
+| `profiler_clear` | Stop and dispose all recorders |
+| `profiler_get_samples` | Return summary stats for recorded markers |
+| `profiler_benchmark` | Fire a named marker with real CPU work to produce measurable samples |
 
 ### Player settings & editor prefs
 
@@ -164,8 +181,8 @@ Expected output:
 | Command | Description |
 |---|---|
 | `tags_layers` | Return all tags and layers defined in the project |
-| `tag_add` | Add a new tag to the project |
-| `layer_add` | Add a new layer to the project |
+| `tag_add` | Add a new tag |
+| `layer_add` | Add a new layer |
 
 ### Packages
 
@@ -173,7 +190,7 @@ Expected output:
 |---|---|
 | `package_list` | List installed Unity packages |
 | `package_add` | Add or update a package by identifier |
-| `package_remove` | Remove an installed package by name |
+| `package_remove` | Remove an installed package |
 | `package_search` | Search the Unity Package Registry |
 
 ### Reflection
@@ -208,6 +225,7 @@ public class MyCommand : IAgentCommand
 
     public string    Cmd         => "my_cmd";
     public string    Description => "Does something useful.";
+    public bool      Core        => true;
     public ArgSpec[] Args        => new[]
     {
         new ArgSpec("message", "string", "", "Text to log"),
@@ -222,6 +240,9 @@ public class MyCommand : IAgentCommand
 }
 ```
 
+Set `Core = false` to hide argument details from `list_commands` — arguments are
+then only returned on demand via `help`.
+
 ---
 
 ## Protocol
@@ -235,7 +256,7 @@ Commands are newline-delimited JSON written to `Temp/agent_input`:
 Responses are appended to `Temp/agent_output`:
 
 ```json
-{"uid":"a1b2c3d4","cmd":"compile","status":"ok","session_id":1749123456789,"errors":[],"warnings":[]}
+{"uid":"a1b2c3d4","cmd":"compile","status":"ok","errors":[],"warnings":[]}
 ```
 
 Unity also writes `Temp/agent_session` every 5 seconds:
@@ -251,41 +272,23 @@ Output rotates at 2 MB; input is truncated on Unity startup.
 
 ## Testing
 
-### Unit tests (Go)
-
-```bash
-cd Harness~/dffrnt-agent
-go test ./...
-```
-
-### End-to-end tests (MCP → Unity)
+### Integration tests (MCP to Unity)
 
 These tests spawn the installed `dffrnt-agent` binary (must be on `PATH`) and drive
 it over the MCP protocol against a live Unity session. Build and install the binary
-first, open the `Example~` project in Unity, then:
+first, open `AgentBridge/Example~` in Unity, then:
 
 ```bash
-cd Harness~/dffrnt-agent
-UNITY_PROJECT=/path/to/AgentBridge/Example~ go test -v -run TestMCP -timeout 300s
+cd AgentBridge/Harness~/dffrnt-agent
+go test -timeout 300s
 ```
 
-On Windows (PowerShell):
-
-```powershell
-$env:UNITY_PROJECT = "C:\path\to\AgentBridge\Example~"
-go test -v -run TestMCP -timeout 300s
-```
-
-If `UNITY_PROJECT` is not set, the tests default to `../../Example~` relative to
-the test directory. Tests are automatically skipped if Unity is not running or the
-session file is missing or stale.
-
-> **Note:** `TestMCP_Refresh` triggers a full `AssetDatabase.Refresh()` which can
-> take 2+ minutes on a fresh project. Subsequent runs are much faster.
+Tests are skipped automatically if Unity is not running or the session file is
+missing or stale.
 
 ---
 
 ## LLM Agent Log window
 
-Open via **Window → General → LLM Agent Log**. Live scrolling view of all
+Open via **Window > General > LLM Agent Log**. Live scrolling view of all
 commands and responses — green = ok, red = error.

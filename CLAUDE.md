@@ -6,15 +6,17 @@ so LLM agents can control a running Unity Editor via MCP.
 ## Structure
 
 ```
-Editor/         C# EditorWindow + AgentBridge (Unity-side bridge)
-Harness~/       Go agent CLI + tools (excluded from Unity import)
-Tests~/         Test package (excluded from Unity import)
+AgentBridge/
+  Editor/         C# EditorWindow + AgentBridge (Unity-side bridge)
+  Harness~/       Go agent CLI + tools (excluded from Unity import)
+  Example~/       Example Unity project (excluded from Unity import)
+  Tests~/         Test package (excluded from Unity import)
 ```
 
 ## Running integration tests
 
 ```bash
-cd Harness~/dffrnt-agent
+cd AgentBridge/Harness~/dffrnt-agent
 go test -timeout 300s
 ```
 
@@ -23,7 +25,7 @@ Use `-timeout 300s` minimum. The full suite takes ~120s; the default 30s timeout
 ## Building the Go agent
 
 ```bash
-cd Harness~/dffrnt-agent
+cd AgentBridge/Harness~/dffrnt-agent
 go build -o dffrnt-agent .        # Linux/macOS
 go build -o dffrnt-agent.exe .    # Windows
 ```
@@ -39,11 +41,11 @@ There is no automated compile trigger — Unity auto-compiles on focus or file c
 
 | File | Purpose |
 |---|---|
-| `Editor/AgentBridge.cs` | Main bridge loop — reads `Temp/agent_input`, writes `Temp/agent_output` |
-| `Editor/AgentLogWindow.cs` | Window > General > LLM Agent Log |
-| `Harness~/dffrnt-agent/main.go` | CLI entry point (`dffrnt-agent send` / `dffrnt-agent serve`) |
-| `Harness~/dffrnt-agent/serve.go` | MCP server (stdio transport) |
-| `Harness~/dffrnt-agent/bridge.go` | File I/O helpers, session check, UID generation |
+| `AgentBridge/Editor/AgentBridge.cs` | Main bridge loop — reads `Temp/agent_input`, writes `Temp/agent_output` |
+| `AgentBridge/Editor/AgentLogWindow.cs` | Window > General > LLM Agent Log |
+| `AgentBridge/Harness~/dffrnt-agent/main.go` | CLI entry point (`dffrnt-agent send` / `dffrnt-agent serve`) |
+| `AgentBridge/Harness~/dffrnt-agent/serve.go` | MCP server (stdio transport) |
+| `AgentBridge/Harness~/dffrnt-agent/bridge.go` | File I/O helpers, session check, UID generation |
 
 ## Protocol
 

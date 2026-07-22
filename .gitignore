@@ -29,5 +29,8 @@ sysinfo.txt
 *.csproj
 
 # Go build output
-Harness~/dffrnt-agent/dffrnt-agent
-Harness~/dffrnt-agent/dffrnt-agent.exe
+AgentBridge/Harness~/dffrnt-agent/dffrnt-agent
+AgentBridge/Harness~/dffrnt-agent/dffrnt-agent.exe
+
+# Claude Code worktrees
+.claude/worktrees/
