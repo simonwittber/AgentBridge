@@ -1,9 +1,21 @@
 # AgentBridge
 
-Unity Editor tooling for AI-assisted development. `AgentBridge` exposes a
-file-based command protocol so external tools (Claude Code, scripts, CI) can
-drive the Unity Editor — and MCP turns every command into a tool your LLM can
-call directly.
+An MCP server for Unity Editor. Install the package, run `dffrnt-agent serve`,
+and your LLM gets a full set of tools to inspect scenes, write scripts, run
+tests, and control the Editor — without leaving the chat.
+
+## Why AgentBridge
+
+Most Unity MCP solutions embed a WebSocket or TCP server inside the Unity process.
+That breaks on every domain reload, requires background threads to fight Unity's
+single-threaded API, and needs a free port on every machine.
+
+AgentBridge uses a file-based queue instead:
+
+- Commands land in `Temp/agent_input` and are processed on Unity's main thread. No sockets, no marshalling, no port conflicts.
+- A heartbeat file (`Temp/agent_session`) lets the agent know whether Unity is idle, compiling, or in play mode before sending any command.
+- Domain reloads are transparent — the queue persists on disk and Unity picks up on the next update tick.
+- New commands are a single `IAgentCommand` class in any Editor assembly. No changes to the bridge or the Go harness.
 
 ## Quickstart
 
