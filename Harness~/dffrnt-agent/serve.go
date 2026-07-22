@@ -1,17 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"image"
-	"image/png"
 	"log"
-	"math"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -80,46 +74,6 @@ func runServe(cfg Config) {
 		}
 	}
 
-	screenshotTool := mcp.NewTool("screenshot",
-		mcp.WithDescription("Render scene view or main camera to a PNG."),
-		mcp.WithString("path"),
-		mcp.WithNumber("width"),
-		mcp.WithNumber("height"),
-		mcp.WithNumber("max_size"),
-	)
-	s.AddTool(screenshotTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		args, _ := req.Params.Arguments.(map[string]any)
-		maxSize := 0
-		if v, ok := args["max_size"]; ok {
-			if f, ok := v.(float64); ok {
-				maxSize = int(f)
-			}
-			delete(args, "max_size")
-		}
-		resp, err := state.send("screenshot", args)
-		if err != nil {
-			return nil, err
-		}
-		out, _ := json.MarshalIndent(resp, "", "  ")
-		if status, _ := resp["status"].(string); status != "ok" {
-			return mcp.NewToolResultText(string(out)), nil
-		}
-		imgPath, _ := resp["path"].(string)
-		if !filepath.IsAbs(imgPath) {
-			imgPath = filepath.Join(state.getConfig().Project, imgPath)
-		}
-		imgBytes, err := os.ReadFile(imgPath)
-		if err != nil {
-			return nil, fmt.Errorf("read screenshot file: %w", err)
-		}
-		if maxSize > 0 {
-			if scaled, err := scalePNG(imgBytes, maxSize); err == nil {
-				imgBytes = scaled
-			}
-		}
-		return mcp.NewToolResultImage(string(out), base64.StdEncoding.EncodeToString(imgBytes), "image/png"), nil
-	})
-
 	invokeTool := mcp.NewTool("invoke",
 		mcp.WithDescription("Call any Unity command by name."),
 		mcp.WithString("cmd"),
@@ -146,12 +100,16 @@ func runServe(cfg Config) {
 	})
 
 	helpTool := mcp.NewTool("help",
-		mcp.WithDescription("Get full description and argument details for any command."),
+		mcp.WithDescription("Get full description and argument details for any command. Omit command to list all available commands."),
 		mcp.WithString("command", mcp.Description("Command name to look up")),
 	)
 	s.AddTool(helpTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		args, _ := req.Params.Arguments.(map[string]any)
 		name, _ := args["command"].(string)
+		if name == "" {
+			out, _ := json.MarshalIndent(map[string]any{"list_commands": state.getRawCmds()}, "", "  ")
+			return mcp.NewToolResultText(string(out)), nil
+		}
 		for _, raw := range state.getRawCmds() {
 			cmdMap, ok := raw.(map[string]any)
 			if !ok {
@@ -172,11 +130,11 @@ func runServe(cfg Config) {
 }
 
 func loadToolsFromUnity(state *serveState, s *server.MCPServer) error {
-	resp, err := state.send("commands", nil)
+	resp, err := state.send("list_commands", nil)
 	if err != nil {
 		return fmt.Errorf("commands call failed: %w", err)
 	}
-	raw, _ := resp["commands"].([]any)
+	raw, _ := resp["list_commands"].([]any)
 	state.mu.Lock()
 	state.rawCmds = raw
 	state.mu.Unlock()
@@ -245,43 +203,19 @@ func registerTools(state *serveState, s *server.MCPServer, cmds []any) {
 			if err != nil {
 				return nil, err
 			}
+			if imageData, ok := resp["imageData"].(string); ok && imageData != "" {
+				mimeType, _ := resp["mimeType"].(string)
+				if mimeType == "" {
+					mimeType = "image/png"
+				}
+				delete(resp, "imageData")
+				delete(resp, "mimeType")
+				out, _ := json.MarshalIndent(resp, "", "  ")
+				return mcp.NewToolResultImage(string(out), imageData, mimeType), nil
+			}
 			out, _ := json.MarshalIndent(resp, "", "  ")
 			return mcp.NewToolResultText(string(out)), nil
 		})
 	}
 }
 
-// scalePNG decodes a PNG and re-encodes it scaled so the longest edge is at
-// most maxSize pixels, preserving aspect ratio. Returns the original bytes on
-// any decode error so the caller can still return something.
-func scalePNG(data []byte, maxSize int) ([]byte, error) {
-	src, err := png.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	b := src.Bounds()
-	w, h := b.Dx(), b.Dy()
-	if w <= maxSize && h <= maxSize {
-		return data, nil
-	}
-	scale := float64(maxSize) / math.Max(float64(w), float64(h))
-	newW := int(math.Round(float64(w) * scale))
-	newH := int(math.Round(float64(h) * scale))
-
-	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
-	scaleX := float64(w) / float64(newW)
-	scaleY := float64(h) / float64(newH)
-	for y := 0; y < newH; y++ {
-		for x := 0; x < newW; x++ {
-			srcX := int(float64(x)*scaleX) + b.Min.X
-			srcY := int(float64(y)*scaleY) + b.Min.Y
-			dst.Set(x, y, src.At(srcX, srcY))
-		}
-	}
-
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, dst); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}

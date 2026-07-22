@@ -18,6 +18,7 @@ namespace LLMDevTools
             AgentBridge.Register(new ProfilerStopCmd());
             AgentBridge.Register(new ProfilerClearCmd());
             AgentBridge.Register(new ProfilerGetSamplesCmd());
+            AgentBridge.Register(new ProfilerBenchmarkCmd());
 
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         }
@@ -204,5 +205,40 @@ namespace LLMDevTools
                 return resp;
             }
         }
+        private sealed class ProfilerBenchmarkCmd : IAgentCommand
+        {
+            public string    Cmd         => "profiler_benchmark";
+            public string    Description => "Fire a named ProfilerMarker with real CPU work to generate measurable timing samples. Call profiler_start with the same marker name first.";
+            public bool      Core        => false;
+            public ArgSpec[] Args        => new[]
+            {
+                new ArgSpec("marker",     "string", "AgentBridge.Benchmark", "Marker name to fire"),
+                new ArgSpec("iterations", "int",    "5",                     "Number of Begin/End cycles"),
+                new ArgSpec("work",       "int",    "500000",                "Inner loop iterations per cycle"),
+            };
+
+            public JsonObject Execute(string uid, string requestJson)
+            {
+                var req        = JsonNode.Parse(requestJson);
+                var markerName = req?["marker"]?.GetValue<string>() ?? "AgentBridge.Benchmark";
+                int iterations = req?["iterations"]?.GetValue<int>() ?? 5;
+                int work       = req?["work"]?.GetValue<int>() ?? 500000;
+
+                var m = new ProfilerMarker(ProfilerCategory.Scripts, markerName);
+                for (int i = 0; i < iterations; i++)
+                {
+                    m.Begin();
+                    double x = 0;
+                    for (int j = 0; j < work; j++) x += j;
+                    UnityEngine.Debug.Log(x); // prevent JIT dead-code elimination
+                    m.End();
+                }
+
+                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+                resp["fired"] = iterations;
+                return resp;
+            }
+        }
     }
 }
+

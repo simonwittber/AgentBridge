@@ -16,19 +16,20 @@ namespace LLMDevTools
         private sealed class ScreenshotCmd : IAgentCommand
         {
             public string    Cmd         => "screenshot";
-            public string    Description => "Render the scene view (or main camera) to a PNG file.";
+            public string    Description => "Render the scene view (or main camera) to a PNG.";
+            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("path",   "string", "", "Defaults to Temp/agent/screenshot.png"),
-                new ArgSpec("width",  "int",    "0", "0 = scene view or 1920"),
-                new ArgSpec("height", "int",    "0", "0 = scene view or 1080"),
+                new ArgSpec("path",     "string", "", "Defaults to Temp/agent/screenshot.png"),
+                new ArgSpec("width",    "int",    "0", "0 = scene view or 1920"),
+                new ArgSpec("height",   "int",    "0", "0 = scene view or 1080"),
+                new ArgSpec("max_size", "int",    "0", "Downscale so longest edge is at most this many pixels"),
             };
 
             public JsonObject Execute(string uid, string requestJson)
             {
                 var p = JsonUtility.FromJson<Params>(requestJson);
 
-                // In play mode use the game camera; fall back to scene view for edit-mode captures.
                 Camera cam = Application.isPlaying ? Camera.main : null;
                 var sv = SceneView.lastActiveSceneView;
                 if (cam == null) cam = sv?.camera;
@@ -68,17 +69,52 @@ namespace LLMDevTools
                 RenderTexture.active = null;
                 UnityEngine.Object.DestroyImmediate(rt);
 
-                try   { File.WriteAllBytes(savePath, tex.EncodeToPNG()); }
+                if (p.max_size > 0 && (w > p.max_size || h > p.max_size))
+                {
+                    float scale  = (float)p.max_size / Mathf.Max(w, h);
+                    int   newW   = Mathf.RoundToInt(w * scale);
+                    int   newH   = Mathf.RoundToInt(h * scale);
+                    var   srt    = new RenderTexture(newW, newH, 0, RenderTextureFormat.ARGB32);
+                    Graphics.Blit(tex, srt);
+                    RenderTexture.active = srt;
+                    var scaledTex = new Texture2D(newW, newH, TextureFormat.RGB24, false);
+                    scaledTex.ReadPixels(new Rect(0, 0, newW, newH), 0, 0);
+                    scaledTex.Apply();
+                    RenderTexture.active = null;
+                    UnityEngine.Object.DestroyImmediate(srt);
+                    UnityEngine.Object.DestroyImmediate(tex);
+                    tex = scaledTex;
+                    w   = newW;
+                    h   = newH;
+                }
+
+                byte[] pngBytes  = null;
+                string imageData = null;
+                try
+                {
+                    pngBytes  = tex.EncodeToPNG();
+                    imageData = System.Convert.ToBase64String(pngBytes);
+                    File.WriteAllBytes(savePath, pngBytes);
+                }
                 finally { UnityEngine.Object.DestroyImmediate(tex); }
 
                 var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["path"]   = savePath;
-                resp["width"]  = w;
-                resp["height"] = h;
+                resp["path"]      = savePath;
+                resp["width"]     = w;
+                resp["height"]    = h;
+                resp["imageData"] = imageData;
+                resp["mimeType"]  = "image/png";
                 return resp;
             }
 
-            [System.Serializable] private class Params { public string path = ""; public int width = 0; public int height = 0; }
+            [System.Serializable]
+            private class Params
+            {
+                public string path     = "";
+                public int    width    = 0;
+                public int    height   = 0;
+                public int    max_size = 0;
+            }
         }
     }
 }

@@ -91,23 +91,14 @@ namespace LLMDevTools
             public string    Cmd         => "console_logs";
             public string    Description => "Return recent Unity console messages, newest first.";
             public bool      Core        => true;
-            public ArgSpec[] Args        => new[]
-            {
-                new ArgSpec("limit", "int",    "50", ""),
-                new ArgSpec("type",  "string", "",   "error, warning, log, or assert"),
-            };
+            public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
             public JsonObject Execute(string uid, string requestJson)
             {
-                var p     = JsonUtility.FromJson<Params>(requestJson);
-                int limit = Math.Max(1, Math.Min(BufferSize, p.limit));
-                var logs  = new JsonArray();
-                int added = 0;
-
-                for (int i = 1; i <= _count && added < limit; i++)
+                var logs = new JsonArray();
+                for (int i = 1; i <= _count; i++)
                 {
                     int idx = ((_head - i) % BufferSize + BufferSize) % BufferSize;
-                    if (!string.IsNullOrEmpty(p.type) && _types[idx] != p.type) continue;
                     var entry = new JsonObject
                     {
                         ["type"]    = _types[idx],
@@ -117,15 +108,11 @@ namespace LLMDevTools
                     if (!string.IsNullOrEmpty(_stackTraces[idx]))
                         entry["stack_trace"] = _stackTraces[idx];
                     logs.Add(entry);
-                    added++;
                 }
-
                 var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
                 resp["logs"] = logs;
                 return resp;
             }
-
-            [Serializable] private class Params { public int limit = 50; public string type = ""; }
         }
     }
 }

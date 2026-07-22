@@ -11,72 +11,91 @@ namespace LLMDevTools
     [InitializeOnLoad]
     public static class TestRunner
     {
-        static TestRunner() => AgentBridge.Register(new RunTestsCommand());
-
-        // ── Command ───────────────────────────────────────────────────────────
-
-        private sealed class RunTestsCommand : IAgentCommand
+        static TestRunner()
         {
-            public string    Cmd         => "run_tests";
-            public string    Description => "Run Unity edit-mode or play-mode tests.";
+            AgentBridge.Register(new RunEditorTestsCmd());
+            AgentBridge.Register(new RunPlayModeTestsCmd());
+        }
+
+        // ── Commands ──────────────────────────────────────────────────────────
+
+        private sealed class RunEditorTestsCmd : IAgentCommand
+        {
+            public string    Cmd         => "run_editor_tests";
+            public string    Description => "Run Unity edit-mode tests.";
             public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("mode",     "string", "EditMode", "EditMode or PlayMode"),
-                new ArgSpec("filter",   "string", "",         "Exact full test name"),
-                new ArgSpec("group",    "string", "",         "Suite or namespace prefix"),
-                new ArgSpec("assembly", "string", "",         ""),
+                new ArgSpec("filter",   "string", "", "Exact full test name"),
+                new ArgSpec("group",    "string", "", "Suite or namespace prefix"),
+                new ArgSpec("assembly", "string", "", ""),
             };
 
-            public JsonObject Execute(string uid, string requestJson)
+            public JsonObject Execute(string uid, string requestJson) =>
+                RunTests(uid, Cmd, TestMode.EditMode, requestJson);
+        }
+
+        private sealed class RunPlayModeTestsCmd : IAgentCommand
+        {
+            public string    Cmd         => "run_playmode_tests";
+            public string    Description => "Run Unity play-mode tests.";
+            public bool      Core        => true;
+            public ArgSpec[] Args        => new[]
             {
-                var p = JsonUtility.FromJson<Params>(requestJson);
+                new ArgSpec("filter",   "string", "", "Exact full test name"),
+                new ArgSpec("group",    "string", "", "Suite or namespace prefix"),
+                new ArgSpec("assembly", "string", "", ""),
+            };
 
-                for (int i = 0; i < EditorSceneManager.sceneCount; i++)
-                {
-                    var s = EditorSceneManager.GetSceneAt(i);
-                    if (s.isDirty && !string.IsNullOrEmpty(s.path))
-                        EditorSceneManager.SaveScene(s);
-                }
+            public JsonObject Execute(string uid, string requestJson) =>
+                RunTests(uid, Cmd, TestMode.PlayMode, requestJson);
+        }
 
-                var api      = ScriptableObject.CreateInstance<TestRunnerApi>();
-                var listener = new Listener(uid, api);
-                api.RegisterCallbacks(listener);
+        // ── Shared execution ──────────────────────────────────────────────────
 
-                var filter = new Filter
-                {
-                    testMode = p.mode == "PlayMode" ? TestMode.PlayMode : TestMode.EditMode
-                };
+        private static JsonObject RunTests(string uid, string cmd, TestMode mode, string requestJson)
+        {
+            var p = JsonUtility.FromJson<Params>(requestJson);
 
-                if (!string.IsNullOrEmpty(p.filter))   filter.testNames     = new[] { p.filter };
-                if (!string.IsNullOrEmpty(p.group))    filter.groupNames    = new[] { p.group };
-                if (!string.IsNullOrEmpty(p.assembly)) filter.assemblyNames = new[] { p.assembly };
-
-                try
-                {
-                    api.Execute(new ExecutionSettings(filter));
-                }
-                catch (Exception ex)
-                {
-                    listener.Unsubscribe();
-                    ScriptableObject.DestroyImmediate(api);
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = ex.Message;
-                    AgentBridge.Respond(e);
-                }
-
-                // async — Listener calls AgentBridge.Respond() when done
-                return null;
+            for (int i = 0; i < EditorSceneManager.sceneCount; i++)
+            {
+                var s = EditorSceneManager.GetSceneAt(i);
+                if (s.isDirty && !string.IsNullOrEmpty(s.path))
+                    EditorSceneManager.SaveScene(s);
             }
 
-            [Serializable]
-            private class Params
+            var api      = ScriptableObject.CreateInstance<TestRunnerApi>();
+            var listener = new Listener(uid, cmd, api);
+            api.RegisterCallbacks(listener);
+
+            var filter = new Filter { testMode = mode };
+            if (!string.IsNullOrEmpty(p.filter))   filter.testNames     = new[] { p.filter };
+            if (!string.IsNullOrEmpty(p.group))    filter.groupNames    = new[] { p.group };
+            if (!string.IsNullOrEmpty(p.assembly)) filter.assemblyNames = new[] { p.assembly };
+
+            try
             {
-                public string mode     = "EditMode";
-                public string filter   = "";
-                public string group    = "";
-                public string assembly = "";
+                api.Execute(new ExecutionSettings(filter));
             }
+            catch (Exception ex)
+            {
+                listener.Unsubscribe();
+                ScriptableObject.DestroyImmediate(api);
+                var e = AgentBridge.MakeResponse(uid, cmd, "error");
+                e["message"] = ex.Message;
+                AgentBridge.Respond(e);
+            }
+
+            // async — Listener calls AgentBridge.Respond() when done
+            return null;
+        }
+
+        [Serializable]
+        private class Params
+        {
+            public string filter   = "";
+            public string group    = "";
+            public string assembly = "";
         }
 
         // ── Callbacks ─────────────────────────────────────────────────────────
@@ -84,14 +103,16 @@ namespace LLMDevTools
         private sealed class Listener : ICallbacks
         {
             private readonly string        _uid;
+            private readonly string        _cmd;
             private readonly TestRunnerApi _api;
             private int                    _passed, _failed, _skipped;
             private readonly List<(string name, string message)> _failures = new();
             private bool                   _done;
 
-            public Listener(string uid, TestRunnerApi api)
+            public Listener(string uid, string cmd, TestRunnerApi api)
             {
                 _uid = uid;
+                _cmd = cmd;
                 _api = api;
                 AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
             }
@@ -104,7 +125,7 @@ namespace LLMDevTools
                 if (_done) return;
                 _done = true;
                 ScriptableObject.DestroyImmediate(_api);
-                var e = AgentBridge.MakeResponse(_uid, "run_tests", "interrupted");
+                var e = AgentBridge.MakeResponse(_uid, _cmd, "interrupted");
                 e["message"] = "Domain reload interrupted test run.";
                 AgentBridge.Respond(e);
             }
@@ -133,7 +154,7 @@ namespace LLMDevTools
                 foreach (var f in _failures)
                     failuresArray.Add(new JsonObject { ["name"] = f.name, ["message"] = f.message });
 
-                var resp = AgentBridge.MakeResponse(_uid, "run_tests", _failed > 0 ? "error" : "ok");
+                var resp = AgentBridge.MakeResponse(_uid, _cmd, _failed > 0 ? "error" : "ok");
                 resp["passed"]   = _passed;
                 resp["failed"]   = _failed;
                 resp["skipped"]  = _skipped;

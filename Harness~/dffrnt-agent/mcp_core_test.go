@@ -19,14 +19,14 @@ func TestMCP_Status(t *testing.T) {
 	}
 }
 
-func TestMCP_Commands(t *testing.T) {
+func TestMCP_ListCommands(t *testing.T) {
 	c := shared
 
-	p := c.callTool(t, "commands", map[string]any{})
+	p := c.callTool(t, "list_commands", map[string]any{})
 	if p["status"] != "ok" {
 		t.Errorf("expected ok, got %v", p["status"])
 	}
-	cmds, _ := p["commands"].([]any)
+	cmds, _ := p["list_commands"].([]any)
 	if len(cmds) == 0 {
 		t.Error("expected at least one command")
 	}
@@ -50,6 +50,26 @@ func TestMCP_Refresh(t *testing.T) {
 	p := c.callTool(t, "refresh", map[string]any{})
 	if p["status"] != "ok" {
 		t.Errorf("expected ok, got %v", p["status"])
+	}
+}
+
+func TestMCP_Help_NoArg_ReturnsList(t *testing.T) {
+	c := shared
+
+	p := c.callTool(t, "help", map[string]any{})
+	cmds, _ := p["list_commands"].([]any)
+	if len(cmds) == 0 {
+		t.Error("expected at least one command in help response")
+	}
+}
+
+func TestMCP_Help_WithArg_ReturnsCommand(t *testing.T) {
+	c := shared
+
+	p := c.callTool(t, "help", map[string]any{"command": "list_commands"})
+	cmd, _ := p["cmd"].(string)
+	if cmd != "list_commands" {
+		t.Errorf("expected cmd=list_commands, got %q", cmd)
 	}
 }
 

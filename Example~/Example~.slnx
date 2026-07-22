@@ -7,9 +7,9 @@
   <Project Path="Unity.VisualStudio.Editor.csproj" />
   <Project Path="Unity.Multiplayer.Center.Editor.csproj" />
   <Project Path="Unity.TextMeshPro.csproj" />
+  <Project Path="LLMDevTools.Editor.Tests.csproj" />
   <Project Path="LLMDevTools.Editor.csproj" />
   <Project Path="Unity.TextMeshPro.Editor.csproj" />
-  <Project Path="LLMDevTools.Editor.Tests.csproj" />
   <Project Path="Unity.Multiplayer.Center.Common.csproj" />
   <Project Path="Unity.InternalAPIEngineBridge.004.csproj" />
   <Project Path="Assembly-CSharp.csproj" />

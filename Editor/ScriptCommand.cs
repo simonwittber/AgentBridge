@@ -111,7 +111,9 @@ namespace LLMDevTools
 
                 if (!File.Exists(outPath)) { error = "Compiler produced no output file."; return null; }
 
+#pragma warning disable UAC0020
                 return Assembly.Load(File.ReadAllBytes(outPath));
+#pragma warning restore UAC0020
             }
             finally
             {
@@ -130,6 +132,7 @@ namespace LLMDevTools
             sb.AppendLine("-debug-");
             sb.AppendLine($"-out:\"{Esc(outPath)}\"");
 
+#pragma warning disable UAC0005, UAC0007
             var seen = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
@@ -142,6 +145,7 @@ namespace LLMDevTools
                 }
                 catch { }
             }
+#pragma warning restore UAC0005, UAC0007
 
             sb.AppendLine($"\"{Esc(srcPath)}\"");
             return sb.ToString();

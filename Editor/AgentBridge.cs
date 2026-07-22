@@ -67,11 +67,11 @@ namespace LLMDevTools
         internal static void ClearRefreshNeeded() => _refreshNeeded = false;
 
         private static readonly HashSet<string> _noWarnCmds = new()
-            { "compile", "refresh", "status", "focus", "commands", "asset_write_text" };
+            { "compile", "refresh", "status", "focus", "list_commands", "asset_write_text" };
 
         private static readonly HashSet<string> _noRefreshWarnCmds = new()
         {
-            "compile", "refresh", "status", "focus", "commands",
+            "compile", "refresh", "status", "focus", "list_commands",
             "asset_write_text", "asset_create", "asset_delete", "asset_move", "asset_copy", "asset_set",
         };
 
@@ -391,12 +391,11 @@ namespace LLMDevTools
 
         public static JsonObject MakeResponse(string uid, string cmd, string status) => new()
         {
-            ["uid"]             = uid,
-            ["cmd"]             = cmd,
-            ["status"]          = status,
-            ["session_id"]      = _sessionId,
-            ["compile_errors"]  = _compileErrorCount,
-            ["console_errors"]  = ConsoleBridge.ErrorCount,
+            ["uid"]            = uid,
+            ["cmd"]            = cmd,
+            ["status"]         = status,
+            ["compile_errors"] = _compileErrorCount,
+            ["console_errors"] = ConsoleBridge.ErrorCount,
         };
 
 #if UNITY_EDITOR_WIN
@@ -467,7 +466,7 @@ namespace LLMDevTools
 
         private sealed class CommandsCmd : IAgentCommand
         {
-            public string Cmd         => "commands";
+            public string Cmd         => "list_commands";
             public string Description => "";
             public bool   Core        => true;
             public JsonObject Execute(string uid, string requestJson)
@@ -494,7 +493,7 @@ namespace LLMDevTools
                     });
                 }
                 var resp = MakeResponse(uid, Cmd, "ok");
-                resp["commands"] = list;
+                resp["list_commands"] = list;
                 return resp;
             }
         }

@@ -11,6 +11,15 @@ Harness~/       Go agent CLI + tools (excluded from Unity import)
 Tests~/         Test package (excluded from Unity import)
 ```
 
+## Running integration tests
+
+```bash
+cd Harness~/dffrnt-agent
+go test -timeout 300s
+```
+
+Use `-timeout 300s` minimum. The full suite takes ~120s; the default 30s timeout will kill it mid-run.
+
 ## Building the Go agent
 
 ```bash

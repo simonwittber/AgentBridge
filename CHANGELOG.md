@@ -11,9 +11,16 @@
 - `IAgentCommand.Core` property: command classes declare themselves as core with `bool Core => true`
 - Go integration tests for profiler commands and `execute_script`, including a live data-capture test that fires a `ProfilerMarker` and verifies `sampleCount > 0`
 
+### Added
+- `profiler_benchmark`: fires a named `ProfilerMarker` with real CPU work to produce measurable timing samples (use with `profiler_start`)
+
 ### Changed
+- `play_mode` (single command with `action` parameter) replaced by `play_enter` and `play_exit` (no arguments each)
+- `run_tests` (single command with `mode` parameter) replaced by `run_editor_tests` and `run_playmode_tests`
+- `commands` renamed to `list_commands`
+- `console_logs` simplified: `limit` and `type` filter arguments removed; always returns all buffered logs
 - MCP tools/list context cost reduced by 31% (from ~3,000 to ~2,063 tokens) by moving argument descriptions behind the `help` tool
-- `serve.go` now loads core tools dynamically from Unity at startup via `commands` instead of a hardcoded allowlist. No Go recompile needed when adding new Unity commands.
+- `serve.go` now loads core tools dynamically from Unity at startup via `list_commands` instead of a hardcoded allowlist. No Go recompile needed when adding new Unity commands.
 - `agent_schema.json` removed; no offline schema cache needed.
 - Dropped `profiler_set_deep` and `profiler_get_frame` (required internal Unity APIs with no public equivalent)
 - Removed `--schema` CLI flag from `dffrnt-agent`

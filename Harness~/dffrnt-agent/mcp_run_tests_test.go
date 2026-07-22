@@ -4,19 +4,16 @@ import (
 	"testing"
 )
 
-func TestMCP_RunTests_EditMode(t *testing.T) {
+func TestMCP_RunEditorTests(t *testing.T) {
 	c := shared
 
-	// Run only the AgentBridge edit-mode tests — scoped to keep the run fast.
-	p := c.callTool(t, "run_tests", map[string]any{
-		"mode":     "EditMode",
+	p := c.callTool(t, "run_editor_tests", map[string]any{
 		"assembly": "com.dffrnt.llm-dev-tools.tests.Editor",
 	})
 
-	// Status is "ok" (all pass) or "error" (some fail) — both are valid responses.
 	status, _ := p["status"].(string)
 	if status != "ok" && status != "error" {
-		t.Fatalf("unexpected run_tests status %q: %v", status, p)
+		t.Fatalf("unexpected run_editor_tests status %q: %v", status, p)
 	}
 	if p["passed"] == nil {
 		t.Error("missing passed count")
@@ -32,18 +29,16 @@ func TestMCP_RunTests_EditMode(t *testing.T) {
 	}
 }
 
-func TestMCP_RunTests_ByFilter(t *testing.T) {
+func TestMCP_RunEditorTests_ByFilter(t *testing.T) {
 	c := shared
 
-	// Run a single known test by full name.
-	p := c.callTool(t, "run_tests", map[string]any{
-		"mode":   "EditMode",
+	p := c.callTool(t, "run_editor_tests", map[string]any{
 		"filter": "LLMDevTools.Tests.SceneBridgeCommandTests.SceneInfo_ReturnsOk",
 	})
 
 	status, _ := p["status"].(string)
 	if status != "ok" && status != "error" {
-		t.Fatalf("unexpected run_tests status %q: %v", status, p)
+		t.Fatalf("unexpected run_editor_tests status %q: %v", status, p)
 	}
 	total, _ := p["total"].(float64)
 	if total == 0 {
