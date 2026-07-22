@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Removed
+- `invoke` tool removed from the MCP server. All Unity commands are now registered as discrete named tools at startup. LLMs can no longer route arbitrary command names through a generic escape hatch.
+
 ## [0.2.0] - 2026-07-22
 
 ### Added
