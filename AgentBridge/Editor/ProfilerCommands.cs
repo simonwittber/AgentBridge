@@ -68,7 +68,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "profiler_start";
             public string    Description => "Begin recording named profiler markers (ProfilerCategory.Scripts). If domain reload on play mode entry is enabled (the default), recorders are recreated automatically when play mode enters using the same marker names.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("markers", "any", "", "JSON array of marker name strings to record"),
@@ -106,7 +105,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "profiler_stop";
             public string    Description => "Stop the current profiler recording session.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
             public JsonObject Execute(string uid, string requestJson)
@@ -125,7 +123,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "profiler_clear";
             public string    Description => "Stop and dispose all profiler recorders.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
             public JsonObject Execute(string uid, string requestJson)
@@ -140,7 +137,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "profiler_get_samples";
             public string    Description => "Return summary stats (and optionally raw values) for recorded markers.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("marker", "string", "", "Filter to a single named marker; omit for all"),
@@ -209,7 +205,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "profiler_benchmark";
             public string    Description => "Fire a named ProfilerMarker with real CPU work to generate measurable timing samples. Call profiler_start with the same marker name first.";
-            public bool      Core        => false;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("marker",     "string", "AgentBridge.Benchmark", "Marker name to fire"),

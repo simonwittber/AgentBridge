@@ -23,7 +23,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "run_editor_tests";
             public string    Description => "Run Unity edit-mode tests.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("filter",   "string", "", "Exact full test name"),
@@ -39,7 +38,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "run_playmode_tests";
             public string    Description => "Run Unity play-mode tests.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("filter",   "string", "", "Exact full test name"),

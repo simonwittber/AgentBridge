@@ -100,7 +100,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "asset_find";
             public string    Description => "Find project assets using an AssetDatabase search filter.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("filter", "string", "",   "t:Type, l:Label"),

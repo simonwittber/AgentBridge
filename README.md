@@ -151,6 +151,8 @@ Expected output:
 | `asset_write_text` | Write a text file under `Assets/` and reimport |
 | `material_get` | Get all shader properties of a material |
 | `material_set` | Set a shader property on a material |
+| `scriptable_get` | Get a named serialized field from a ScriptableObject asset |
+| `scriptable_set` | Set a named serialized field on a ScriptableObject asset and save |
 
 ### Editor & console
 
@@ -162,7 +164,7 @@ Expected output:
 | `menu_item` | Invoke a Unity menu item by path |
 | `run_editor_tests` | Run edit-mode tests; returns pass/fail/skip |
 | `run_playmode_tests` | Run play-mode tests; returns pass/fail/skip |
-| `screenshot` | Render scene view or main camera to PNG; returns base64 inline |
+| `screenshot` | Render scene view or main camera to PNG; returns the file path |
 | `execute_script` | Compile and run a C# snippet in the Editor |
 | `selection_get` | Return the currently selected GameObjects and assets |
 | `undo` | Perform an undo operation |
@@ -237,7 +239,6 @@ public class MyCommand : IAgentCommand
 
     public string    Cmd         => "my_cmd";
     public string    Description => "Does something useful.";
-    public bool      Core        => true;
     public ArgSpec[] Args        => new[]
     {
         new ArgSpec("message", "string", "", "Text to log"),
@@ -251,9 +252,6 @@ public class MyCommand : IAgentCommand
     }
 }
 ```
-
-Set `Core = false` to hide argument details from `list_commands` — arguments are
-then only returned on demand via `help`.
 
 ---
 

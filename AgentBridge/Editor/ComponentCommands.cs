@@ -20,7 +20,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "component_get";
             public string    Description => "Get serialized fields of a component. Arrays return {_items, _total}; check _truncated.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",      "string", "", ""),
@@ -56,7 +55,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "component_set";
             public string    Description => "Set a serialized field. Asset refs: {\"path\":\"Assets/...\"}, scene refs: {\"scene\":\"Obj\"}. Arrays: pass a plain JSON array.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",      "string", "", ""),
@@ -178,7 +176,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "component_add";
             public string    Description => "Add a component to a GameObject by type name.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "", ""),

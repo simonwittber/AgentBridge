@@ -71,6 +71,14 @@ func launchUnityProject(cfg Config, args map[string]any, flag, message string) (
 	}
 	unityExe, err := resolveUnityExe(cfg, args)
 	if err != nil {
+		if me, ok := err.(*multipleInstallsError); ok {
+			out, _ := json.MarshalIndent(map[string]any{
+				"status":            "choose_unity_version",
+				"message":           me.Error(),
+				"available_installs": me.installs,
+			}, "", "  ")
+			return mcp.NewToolResultText(string(out)), nil
+		}
 		return nil, err
 	}
 	absPath, err := filepath.Abs(path)
@@ -103,10 +111,33 @@ func resolveUnityExe(cfg Config, args map[string]any) (string, error) {
 		return p, nil
 	}
 	installs := findUnityInstalls()
-	if len(installs) > 0 {
+	if len(installs) == 0 {
+		return "", fmt.Errorf("Unity executable not found; specify unity_path, set UNITY_EDITOR, or use --unity flag")
+	}
+	if len(installs) == 1 {
 		return installs[len(installs)-1].Path, nil
 	}
-	return "", fmt.Errorf("Unity executable not found; specify unity_path, set UNITY_EDITOR, or use --unity flag")
+	return "", &multipleInstallsError{installs: installs}
+}
+
+type multipleInstallsError struct {
+	installs []unityInstall
+}
+
+func (e *multipleInstallsError) Error() string {
+	return "multiple Unity installs found; re-call with unity_path set to one of the available installs"
+}
+
+func (e *multipleInstallsError) MarshalJSON() ([]byte, error) {
+	type entry struct {
+		Version string `json:"version"`
+		Path    string `json:"path"`
+	}
+	entries := make([]entry, len(e.installs))
+	for i, inst := range e.installs {
+		entries[i] = entry{Version: inst.Version, Path: inst.Path}
+	}
+	return json.Marshal(entries)
 }
 
 func findUnityInstalls() []unityInstall {

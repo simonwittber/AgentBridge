@@ -47,8 +47,44 @@ func (s *serveState) send(cmd string, args map[string]any) (map[string]any, erro
 	return send(cfg, cmd, args)
 }
 
+// staticCmds describes the always-available Go-side tools so help() always
+// returns them regardless of whether Unity is running.
+var staticCmds = []any{
+	map[string]any{
+		"cmd":         "set_project",
+		"description": "Set the Unity project path.",
+		"args":        []any{map[string]any{"name": "path", "type": "string", "default": "", "description": "Absolute path to the Unity project root"}},
+	},
+	map[string]any{
+		"cmd":         "open_project",
+		"description": "Open an existing Unity project. Unity opens in the background.",
+		"args": []any{
+			map[string]any{"name": "path", "type": "string", "default": "", "description": "Absolute path to the Unity project to open"},
+			map[string]any{"name": "unity_path", "type": "string", "default": "", "description": "Path to the Unity executable. Auto-detected if omitted"},
+		},
+	},
+	map[string]any{
+		"cmd":         "create_project",
+		"description": "Create a new Unity project at the given path. Unity opens in the background.",
+		"args": []any{
+			map[string]any{"name": "path", "type": "string", "default": "", "description": "Absolute path where the new project should be created"},
+			map[string]any{"name": "unity_path", "type": "string", "default": "", "description": "Path to the Unity executable. Auto-detected if omitted"},
+		},
+	},
+	map[string]any{
+		"cmd":         "find_unity_installs",
+		"description": "List Unity Editor installations found on this machine.",
+		"args":        []any{},
+	},
+	map[string]any{
+		"cmd":         "help",
+		"description": "Get full description and argument details for any command. Omit command to list all available commands.",
+		"args":        []any{map[string]any{"name": "command", "type": "string", "default": "", "description": "Command name to look up"}},
+	},
+}
+
 func runServe(cfg Config) {
-	state := &serveState{cfg: cfg}
+	state := &serveState{cfg: cfg, rawCmds: staticCmds}
 	s := server.NewMCPServer("unity-agentbridge", "0.1.0")
 
 	registerProjectTools(cfg, s)
@@ -64,7 +100,13 @@ func runServe(cfg Config) {
 			return nil, fmt.Errorf("path is required")
 		}
 		state.setProject(path)
-		out, _ := json.MarshalIndent(map[string]any{"status": "ok", "project": path}, "", "  ")
+		result := map[string]any{"status": "ok", "project": path}
+		if err := loadToolsFromUnity(state, s); err != nil {
+			result["warning"] = "Unity commands not loaded: " + err.Error()
+		} else {
+			result["commands_loaded"] = len(state.getRawCmds()) - len(staticCmds)
+		}
+		out, _ := json.MarshalIndent(result, "", "  ")
 		return mcp.NewToolResultText(string(out)), nil
 	})
 
@@ -82,7 +124,12 @@ func runServe(cfg Config) {
 		args, _ := req.Params.Arguments.(map[string]any)
 		name, _ := args["command"].(string)
 		if name == "" {
-			out, _ := json.MarshalIndent(map[string]any{"list_commands": state.getRawCmds()}, "", "  ")
+			cmds := state.getRawCmds()
+			payload := map[string]any{"list_commands": cmds}
+			if len(cmds) <= len(staticCmds) {
+				payload["_warning"] = "Unity commands not loaded. Call set_project with the path to your Unity project root, then Unity commands will appear here."
+			}
+			out, _ := json.MarshalIndent(payload, "", "  ")
 			return mcp.NewToolResultText(string(out)), nil
 		}
 		for _, raw := range state.getRawCmds() {
@@ -109,12 +156,16 @@ func loadToolsFromUnity(state *serveState, s *server.MCPServer) error {
 	if err != nil {
 		return fmt.Errorf("commands call failed: %w", err)
 	}
-	raw, _ := resp["list_commands"].([]any)
+	unityCmds, _ := resp["list_commands"].([]any)
+	if unityCmds == nil {
+		return fmt.Errorf("list_commands returned null")
+	}
+	merged := append(staticCmds, unityCmds...)
 	state.mu.Lock()
-	state.rawCmds = raw
+	state.rawCmds = merged
 	state.mu.Unlock()
-	registerTools(state, s, raw)
-	log.Printf("registered %d core tool(s) from Unity", len(raw))
+	registerTools(state, s, unityCmds)
+	log.Printf("registered %d tool(s) from Unity", len(unityCmds))
 	return nil
 }
 
@@ -125,8 +176,7 @@ func registerTools(state *serveState, s *server.MCPServer, cmds []any) {
 			continue
 		}
 		name, _ := cmdMap["cmd"].(string)
-		core, _ := cmdMap["core"].(bool)
-		if name == "" || !core {
+		if name == "" {
 			continue
 		}
 		desc, _ := cmdMap["description"].(string)
@@ -177,16 +227,6 @@ func registerTools(state *serveState, s *server.MCPServer, cmds []any) {
 			resp, err := state.send(toolName, args)
 			if err != nil {
 				return nil, err
-			}
-			if imageData, ok := resp["imageData"].(string); ok && imageData != "" {
-				mimeType, _ := resp["mimeType"].(string)
-				if mimeType == "" {
-					mimeType = "image/png"
-				}
-				delete(resp, "imageData")
-				delete(resp, "mimeType")
-				out, _ := json.MarshalIndent(resp, "", "  ")
-				return mcp.NewToolResultImage(string(out), imageData, mimeType), nil
 			}
 			out, _ := json.MarshalIndent(resp, "", "  ")
 			return mcp.NewToolResultText(string(out)), nil

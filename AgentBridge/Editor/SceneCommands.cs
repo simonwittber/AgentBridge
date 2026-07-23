@@ -22,7 +22,6 @@ namespace LLMDevTools
         {
             public string Cmd         => "scene_info";
             public string Description => "";
-            public bool   Core        => true;
 
             public JsonObject Execute(string uid, string requestJson)
             {
@@ -40,7 +39,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "scene_open";
             public string    Description => "Open a scene by asset path.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "",       ""),
@@ -81,7 +79,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "scene_save";
             public string    Description => "";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "", "Auto-generated if omitted"),
@@ -119,7 +116,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "scene_new";
             public string    Description => "";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("setup", "string", "empty", "empty or defaultGameObjects"),

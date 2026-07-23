@@ -1,8 +1,8 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/binary"
+	"os"
 	"testing"
 )
 
@@ -208,7 +208,7 @@ func TestMCP_Screenshot(t *testing.T) {
 	}
 }
 
-func TestMCP_Screenshot_ReturnsInlineImage(t *testing.T) {
+func TestMCP_Screenshot_ReturnsPath(t *testing.T) {
 	c := shared
 
 	resp := c.call(t, "tools/call", map[string]any{
@@ -223,63 +223,29 @@ func TestMCP_Screenshot_ReturnsInlineImage(t *testing.T) {
 		t.Fatalf("no result: %v", resp)
 	}
 	content, _ := result["content"].([]any)
-
-	var imgEntry map[string]any
-	for _, item := range content {
-		m, _ := item.(map[string]any)
-		if m["type"] == "image" {
-			imgEntry = m
-			break
-		}
+	if len(content) == 0 {
+		t.Fatal("empty content in screenshot result")
 	}
-	if imgEntry == nil {
-		t.Fatal("no image content in screenshot result")
-	}
-	if imgEntry["mimeType"] != "image/png" {
-		t.Errorf("expected mimeType image/png, got %v", imgEntry["mimeType"])
-	}
-	dataStr, _ := imgEntry["data"].(string)
-	if dataStr == "" {
-		t.Fatal("empty image data")
-	}
-	raw, err := base64.StdEncoding.DecodeString(dataStr)
-	if err != nil {
-		t.Fatalf("base64 decode: %v", err)
-	}
-	pngMagic := []byte{0x89, 'P', 'N', 'G'}
-	if len(raw) < 4 || string(raw[:4]) != string(pngMagic) {
-		t.Errorf("data is not a PNG (first 4 bytes: %x)", raw[:min(4, len(raw))])
+	first, _ := content[0].(map[string]any)
+	if first["type"] != "text" {
+		t.Fatalf("expected text content, got type %v", first["type"])
 	}
 }
 
 func TestMCP_Screenshot_MaxSize(t *testing.T) {
 	c := shared
 
-	resp := c.call(t, "tools/call", map[string]any{
-		"name":      "screenshot",
-		"arguments": map[string]any{"max_size": 256},
-	})
-	if errVal, ok := resp["error"]; ok {
-		t.Fatalf("MCP error calling screenshot: %v", errVal)
+	p := c.callTool(t, "screenshot", map[string]any{"max_size": 256})
+	if p["status"] != "ok" {
+		t.Fatalf("screenshot failed: %v", p)
 	}
-	result, _ := resp["result"].(map[string]any)
-	content, _ := result["content"].([]any)
-
-	var imgEntry map[string]any
-	for _, item := range content {
-		m, _ := item.(map[string]any)
-		if m["type"] == "image" {
-			imgEntry = m
-			break
-		}
+	filePath, _ := p["path"].(string)
+	if filePath == "" {
+		t.Fatal("missing path in screenshot response")
 	}
-	if imgEntry == nil {
-		t.Fatal("no image content in screenshot result")
-	}
-	dataStr, _ := imgEntry["data"].(string)
-	raw, err := base64.StdEncoding.DecodeString(dataStr)
+	raw, err := os.ReadFile(filePath)
 	if err != nil {
-		t.Fatalf("base64 decode: %v", err)
+		t.Fatalf("read screenshot file: %v", err)
 	}
 	// PNG IHDR: 8-byte signature + 4-byte length + 4-byte "IHDR" + 4-byte width + 4-byte height
 	if len(raw) < 24 {

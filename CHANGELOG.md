@@ -2,8 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+- `scriptable_get`: read a named serialized field from a ScriptableObject asset by path
+- `scriptable_set`: write a named serialized field on a ScriptableObject asset and save it to disk
+
+### Changed
+- `screenshot` no longer returns base64 image data inline. It saves to a PNG file and returns the absolute path. Use `max_size` to downscale before saving.
+- `execute_script` now loads compiled assemblies into a collectible `AssemblyLoadContext` so they are garbage-collected after each call, preventing domain reload slowdown over time.
+- `set_project` now calls `list_commands` immediately after setting the project path, so Unity commands are available without a separate discovery step. The response includes `commands_loaded` on success or a `warning` if Unity is not reachable.
+- `open_project` and `create_project` now return a `choose_unity_version` response listing all detected installs when multiple Unity versions are installed and `unity_path` was not specified. Re-call with `unity_path` set to the desired entry.
+- `help` (no argument) always returns at least the Go-side commands (`set_project`, `open_project`, `create_project`, `find_unity_installs`) and includes a `_warning` with instructions to call `set_project` when Unity commands have not been loaded yet.
+
 ### Removed
 - `invoke` tool removed from the MCP server. All Unity commands are now registered as discrete named tools at startup. LLMs can no longer route arbitrary command names through a generic escape hatch.
+- `IAgentCommand.Core` property removed. All registered commands are now exposed as named MCP tools; there is no longer a distinction between core and non-core commands.
 
 ## [0.2.0] - 2026-07-22
 

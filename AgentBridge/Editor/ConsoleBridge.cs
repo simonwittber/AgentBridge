@@ -90,7 +90,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "console_logs";
             public string    Description => "Return recent Unity console messages, newest first.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
             public JsonObject Execute(string uid, string requestJson)

@@ -16,8 +16,7 @@ namespace LLMDevTools
         private sealed class ScreenshotCmd : IAgentCommand
         {
             public string    Cmd         => "screenshot";
-            public string    Description => "Render the scene view (or main camera) to a PNG.";
-            public bool      Core        => true;
+            public string    Description => "Render the scene view (or main camera) to a PNG. Returns the file path — read the file to view the image.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",     "string", "", "Defaults to Temp/agent/screenshot.png"),
@@ -88,22 +87,16 @@ namespace LLMDevTools
                     h   = newH;
                 }
 
-                byte[] pngBytes  = null;
-                string imageData = null;
                 try
                 {
-                    pngBytes  = tex.EncodeToPNG();
-                    imageData = System.Convert.ToBase64String(pngBytes);
-                    File.WriteAllBytes(savePath, pngBytes);
+                    File.WriteAllBytes(savePath, tex.EncodeToPNG());
                 }
                 finally { UnityEngine.Object.DestroyImmediate(tex); }
 
                 var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["path"]      = savePath;
-                resp["width"]     = w;
-                resp["height"]    = h;
-                resp["imageData"] = imageData;
-                resp["mimeType"]  = "image/png";
+                resp["path"]   = Path.GetFullPath(savePath);
+                resp["width"]  = w;
+                resp["height"] = h;
                 return resp;
             }
 

@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(rtk grep *)",
-      "Bash(rtk find *)"
+      "Bash(rtk find *)",
+      "Bash(rtk read *)",
+      "Bash(rtk go *)"
     ]
-  }
+  },
+  "disabledMcpjsonServers": [
+    "unity-example"
+  ]
 }

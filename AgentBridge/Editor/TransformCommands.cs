@@ -27,7 +27,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "set_transform";
             public string    Description => "Set position, rotation (euler degrees), and/or scale of a GameObject in one call.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",     "string", "",      "Hierarchy path of the GameObject"),
@@ -78,7 +77,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "duplicate_object";
             public string    Description => "Duplicate a GameObject, placing the copy next to the original in the hierarchy.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path", "string", "", "Hierarchy path of the object to duplicate"),
@@ -113,7 +111,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "reparent_object";
             public string    Description => "Move a GameObject to a new parent in the hierarchy.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("path",                "string", "",     "Hierarchy path of the object to reparent"),

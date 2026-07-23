@@ -16,7 +16,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "play_enter";
             public string    Description => "Enter play mode.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
             public JsonObject Execute(string uid, string requestJson)
@@ -32,7 +31,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "play_exit";
             public string    Description => "Exit play mode.";
-            public bool      Core        => true;
             public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
             public JsonObject Execute(string uid, string requestJson)

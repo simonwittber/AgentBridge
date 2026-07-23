@@ -16,7 +16,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "undo";
             public string    Description => "";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new ArgSpec[0];
 
             public JsonObject Execute(string uid, string requestJson)
@@ -30,7 +29,6 @@ namespace LLMDevTools
         {
             public string    Cmd         => "redo";
             public string    Description => "";
-            public bool      Core        => true;
             public ArgSpec[] Args        => new ArgSpec[0];
 
             public JsonObject Execute(string uid, string requestJson)

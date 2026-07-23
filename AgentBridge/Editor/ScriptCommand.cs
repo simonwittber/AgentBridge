@@ -111,9 +111,7 @@ namespace LLMDevTools
 
                 if (!File.Exists(outPath)) { error = "Compiler produced no output file."; return null; }
 
-#pragma warning disable UAC0020
-                return Assembly.Load(File.ReadAllBytes(outPath));
-#pragma warning restore UAC0020
+                return CollectibleLoader.Load(File.ReadAllBytes(outPath));
             }
             finally
             {
@@ -152,6 +150,37 @@ namespace LLMDevTools
         }
 
         private static string Esc(string s) => s.Replace("\"", "\\\"");
+
+        // Wraps AssemblyLoadContext via reflection so the asmdef needs no extra reference.
+        // Falls back to Assembly.Load if the type is unavailable.
+        internal static class CollectibleLoader
+        {
+            static readonly Type   _alcType      = Type.GetType("System.Runtime.Loader.AssemblyLoadContext, System.Runtime.Loader");
+            static readonly Type   _alcTypeFull  = _alcType ?? Type.GetType("System.Runtime.Loader.AssemblyLoadContext");
+            static readonly MethodInfo _loadStream   = _alcTypeFull?.GetMethod("LoadFromStream", new[] { typeof(Stream) });
+            static readonly MethodInfo _getCtx       = _alcTypeFull?.GetMethod("GetLoadContext", BindingFlags.Public | BindingFlags.Static);
+            static readonly MethodInfo _unload       = _alcTypeFull?.GetMethod("Unload");
+
+            internal static Assembly Load(byte[] bytes)
+            {
+                var ctor = _alcTypeFull?.GetConstructor(new[] { typeof(string), typeof(bool) });
+                if (ctor == null || _loadStream == null)
+                {
+#pragma warning disable UAC0020
+                    return Assembly.Load(bytes);
+#pragma warning restore UAC0020
+                }
+                var alc = ctor.Invoke(new object[] { "AgentBridgeScript", true });
+                return (Assembly)_loadStream.Invoke(alc, new object[] { new MemoryStream(bytes) });
+            }
+
+            internal static void Unload(Assembly asm)
+            {
+                if (asm == null || _getCtx == null || _unload == null) return;
+                var ctx = _getCtx.Invoke(null, new object[] { asm });
+                if (ctx != null) _unload.Invoke(ctx, null);
+            }
+        }
 
         // ── execute_script ────────────────────────────────────────────────────
 
@@ -196,6 +225,7 @@ namespace LLMDevTools
                     var method = type?.GetMethod("Run", BindingFlags.Public | BindingFlags.Static);
                     if (method == null)
                     {
+                        CollectibleLoader.Unload(assembly);
                         var err = AgentBridge.MakeResponse(uid, Cmd, "error");
                         err["message"] = "Compiled assembly is missing AgentScript.Run()";
                         return err;
@@ -203,9 +233,11 @@ namespace LLMDevTools
 
                     var result = method.Invoke(null, null);
                     returnValue = result?.ToString();
+                    CollectibleLoader.Unload(assembly);
                 }
                 catch (TargetInvocationException tex)
                 {
+                    CollectibleLoader.Unload(tex.TargetSite?.DeclaringType?.Assembly);
                     var err = AgentBridge.MakeResponse(uid, Cmd, "error");
                     err["message"] = tex.InnerException?.Message ?? tex.Message;
                     return err;
