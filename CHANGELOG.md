@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-28
+
 ### Added
 - `scriptable_get`: read a named serialized field from a ScriptableObject asset by path
 - `scriptable_set`: write a named serialized field on a ScriptableObject asset and save it to disk
@@ -59,5 +61,6 @@
 - Tags and layers: `tags_layers`, `tag_add`, `layer_add`
 - Build: `build`
 
+[0.3.0]: https://github.com/simonwittber/AgentBridge/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/simonwittber/AgentBridge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/simonwittber/AgentBridge/releases/tag/v0.1.0

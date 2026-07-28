@@ -32,5 +32,5 @@ sysinfo.txt
 AgentBridge/Harness~/dffrnt-agent/dffrnt-agent
 AgentBridge/Harness~/dffrnt-agent/dffrnt-agent.exe
 
-# Claude Code worktrees
-.claude/worktrees/
+# Claude Code
+.claude/
