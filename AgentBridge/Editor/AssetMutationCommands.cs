@@ -5,16 +5,15 @@ using UnityEngine;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
-    public static class AssetMutationCommands
+    internal static class AssetMutationCommands
     {
-        static AssetMutationCommands()
+        internal static void EnsureFolder(string assetPath)
         {
-            AgentBridge.Register(new AssetCreateCmd());
-            AgentBridge.Register(new AssetWriteTextCmd());
-            AgentBridge.Register(new AssetDeleteCmd());
-            AgentBridge.Register(new AssetMoveCmd());
-            AgentBridge.Register(new AssetCopyCmd());
+            if (string.IsNullOrEmpty(assetPath) || AssetDatabase.IsValidFolder(assetPath)) return;
+            EnsureFolder(Path.GetDirectoryName(assetPath).Replace('\\', '/'));
+            string parent = Path.GetDirectoryName(assetPath).Replace('\\', '/');
+            string name   = Path.GetFileName(assetPath);
+            AssetDatabase.CreateFolder(parent, name);
         }
 
         private sealed class AssetCreateCmd : IAgentCommand
@@ -37,13 +36,13 @@ namespace LLMDevTools
                     return err;
                 }
 
-                EnsureFolder(System.IO.Path.GetDirectoryName(p.path).Replace('\\', '/'));
+                EnsureFolder(Path.GetDirectoryName(p.path).Replace('\\', '/'));
 
                 string guid;
                 if (p.type == "folder")
                 {
-                    string parent = System.IO.Path.GetDirectoryName(p.path).Replace('\\', '/');
-                    string name   = System.IO.Path.GetFileName(p.path);
+                    string parent = Path.GetDirectoryName(p.path).Replace('\\', '/');
+                    string name   = Path.GetFileName(p.path);
                     guid = AssetDatabase.CreateFolder(parent, name);
                 }
                 else if (p.type == "material")
@@ -115,15 +114,6 @@ namespace LLMDevTools
                 resp["path"] = path;
                 return resp;
             }
-        }
-
-        private static void EnsureFolder(string assetPath)
-        {
-            if (string.IsNullOrEmpty(assetPath) || AssetDatabase.IsValidFolder(assetPath)) return;
-            EnsureFolder(System.IO.Path.GetDirectoryName(assetPath).Replace('\\', '/'));
-            string parent = System.IO.Path.GetDirectoryName(assetPath).Replace('\\', '/');
-            string name   = System.IO.Path.GetFileName(assetPath);
-            AssetDatabase.CreateFolder(parent, name);
         }
 
         private sealed class AssetDeleteCmd : IAgentCommand

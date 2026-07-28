@@ -7,77 +7,68 @@ using UnityEngine;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
-    public static class BuildCommands
+    internal sealed class BuildCmd : IAgentCommand
     {
-        static BuildCommands()
+        public string    Cmd         => "build";
+        public string    Description => "Build the Unity player for the specified target.";
+        public ArgSpec[] Args        => new[]
         {
-            AgentBridge.Register(new BuildCmd());
-        }
+            new ArgSpec("target",      "string", "StandaloneWindows64", ""),
+            new ArgSpec("output",      "string", "",                    ""),
+            new ArgSpec("scenes",      "string", "",                    "Comma-separated; omit for build settings"),
+            new ArgSpec("development", "bool",   "false",               ""),
+        };
 
-        private sealed class BuildCmd : IAgentCommand
+        public JsonObject Execute(string uid, string requestJson)
         {
-            public string    Cmd         => "build";
-            public string    Description => "Build the Unity player for the specified target.";
-            public ArgSpec[] Args        => new[]
+            var p = JsonUtility.FromJson<Params>(requestJson);
+            if (string.IsNullOrEmpty(p.output))
             {
-                new ArgSpec("target",      "string", "StandaloneWindows64", ""),
-                new ArgSpec("output",      "string", "",                    ""),
-                new ArgSpec("scenes",      "string", "",                    "Comma-separated; omit for build settings"),
-                new ArgSpec("development", "bool",   "false",               ""),
+                var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                err["message"] = "output is required";
+                return err;
+            }
+
+            string[] sceneList = string.IsNullOrEmpty(p.scenes)
+                ? EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray()
+                : p.scenes.Split(',');
+
+            var opts = new BuildPlayerOptions
+            {
+                scenes           = sceneList,
+                locationPathName = p.output,
+                options          = p.development ? BuildOptions.Development : BuildOptions.None,
             };
 
-            public JsonObject Execute(string uid, string requestJson)
+            try
             {
-                var p = JsonUtility.FromJson<Params>(requestJson);
-                if (string.IsNullOrEmpty(p.output))
-                {
-                    var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    err["message"] = "output is required";
-                    return err;
-                }
-
-                string[] sceneList = string.IsNullOrEmpty(p.scenes)
-                    ? EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray()
-                    : p.scenes.Split(',');
-
-                var opts = new BuildPlayerOptions
-                {
-                    scenes           = sceneList,
-                    locationPathName = p.output,
-                    options          = p.development ? BuildOptions.Development : BuildOptions.None,
-                };
-
-                try
-                {
-                    opts.target = (BuildTarget)Enum.Parse(typeof(BuildTarget), p.target, true);
-                }
-                catch
-                {
-                    var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    err["message"] = "Unknown build target: " + p.target;
-                    return err;
-                }
-
-                var report  = BuildPipeline.BuildPlayer(opts);
-                var summary = report.summary;
-                string status = summary.result == BuildResult.Succeeded ? "ok" : "error";
-                var resp = AgentBridge.MakeResponse(uid, Cmd, status);
-                resp["result"]          = summary.result.ToString();
-                resp["total_errors"]    = summary.totalErrors;
-                resp["total_warnings"]  = summary.totalWarnings;
-                resp["duration_s"]      = summary.totalTime.TotalSeconds;
-                resp["output_path"]     = summary.outputPath ?? "";
-                return resp;
+                opts.target = (BuildTarget)Enum.Parse(typeof(BuildTarget), p.target, true);
+            }
+            catch
+            {
+                var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                err["message"] = "Unknown build target: " + p.target;
+                return err;
             }
 
-            [Serializable] private class Params
-            {
-                public string target      = "StandaloneWindows64";
-                public string output      = "";
-                public string scenes      = "";
-                public bool   development = false;
-            }
+            var report  = BuildPipeline.BuildPlayer(opts);
+            var summary = report.summary;
+            string status = summary.result == BuildResult.Succeeded ? "ok" : "error";
+            var resp = AgentBridge.MakeResponse(uid, Cmd, status);
+            resp["result"]          = summary.result.ToString();
+            resp["total_errors"]    = summary.totalErrors;
+            resp["total_warnings"]  = summary.totalWarnings;
+            resp["duration_s"]      = summary.totalTime.TotalSeconds;
+            resp["output_path"]     = summary.outputPath ?? "";
+            return resp;
+        }
+
+        [Serializable] private class Params
+        {
+            public string target      = "StandaloneWindows64";
+            public string output      = "";
+            public string scenes      = "";
+            public bool   development = false;
         }
     }
 }

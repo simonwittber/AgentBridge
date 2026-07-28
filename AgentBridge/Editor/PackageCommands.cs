@@ -16,10 +16,6 @@ namespace LLMDevTools
 
         static PackageCommands()
         {
-            AgentBridge.Register(new PackageListCmd());
-            AgentBridge.Register(new PackageAddCmd());
-            AgentBridge.Register(new PackageRemoveCmd());
-            AgentBridge.Register(new PackageSearchCmd());
             EditorApplication.update += OnUpdate;
         }
 

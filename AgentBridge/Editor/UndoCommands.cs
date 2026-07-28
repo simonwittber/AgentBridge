@@ -3,39 +3,29 @@ using UnityEditor;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
-    public static class UndoCommands
+    internal sealed class UndoCmd : IAgentCommand
     {
-        static UndoCommands()
+        public string    Cmd         => "undo";
+        public string    Description => "";
+        public ArgSpec[] Args        => new ArgSpec[0];
+
+        public JsonObject Execute(string uid, string requestJson)
         {
-            AgentBridge.Register(new UndoCmd());
-            AgentBridge.Register(new RedoCmd());
+            Undo.PerformUndo();
+            return AgentBridge.MakeResponse(uid, Cmd, "ok");
         }
+    }
 
-        private sealed class UndoCmd : IAgentCommand
+    internal sealed class RedoCmd : IAgentCommand
+    {
+        public string    Cmd         => "redo";
+        public string    Description => "";
+        public ArgSpec[] Args        => new ArgSpec[0];
+
+        public JsonObject Execute(string uid, string requestJson)
         {
-            public string    Cmd         => "undo";
-            public string    Description => "";
-            public ArgSpec[] Args        => new ArgSpec[0];
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                Undo.PerformUndo();
-                return AgentBridge.MakeResponse(uid, Cmd, "ok");
-            }
-        }
-
-        private sealed class RedoCmd : IAgentCommand
-        {
-            public string    Cmd         => "redo";
-            public string    Description => "";
-            public ArgSpec[] Args        => new ArgSpec[0];
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                Undo.PerformRedo();
-                return AgentBridge.MakeResponse(uid, Cmd, "ok");
-            }
+            Undo.PerformRedo();
+            return AgentBridge.MakeResponse(uid, Cmd, "ok");
         }
     }
 }

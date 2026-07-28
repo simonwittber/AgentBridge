@@ -4,54 +4,45 @@ using UnityEngine;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
-    public static class SelectionCommands
+    internal sealed class SelectionGetCmd : IAgentCommand
     {
-        static SelectionCommands()
-        {
-            AgentBridge.Register(new SelectionGetCmd());
-        }
+        public string    Cmd         => "selection_get";
+        public string    Description => "";
+        public ArgSpec[] Args        => new ArgSpec[0];
 
-        private sealed class SelectionGetCmd : IAgentCommand
+        public JsonObject Execute(string uid, string requestJson)
         {
-            public string    Cmd         => "selection_get";
-            public string    Description => "";
-            public ArgSpec[] Args        => new ArgSpec[0];
-
-            public JsonObject Execute(string uid, string requestJson)
+            var gameObjectsArray = new JsonArray();
+            foreach (var go in Selection.gameObjects)
             {
-                var gameObjectsArray = new JsonArray();
-                foreach (var go in Selection.gameObjects)
+                gameObjectsArray.Add(new JsonObject
                 {
-                    gameObjectsArray.Add(new JsonObject
-                    {
-                        ["name"]   = go.name,
-                        ["path"]   = GetPath(go),
-                        ["active"] = go.activeSelf,
-                    });
-                }
-
-                var assetsArray = new JsonArray();
-                foreach (var guid in Selection.assetGUIDs)
-                {
-                    string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                    var type         = AssetDatabase.GetMainAssetTypeAtPath(assetPath);
-                    assetsArray.Add(new JsonObject
-                    {
-                        ["path"] = assetPath,
-                        ["guid"] = guid,
-                        ["type"] = type?.Name ?? "",
-                    });
-                }
-
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["gameObjects"] = gameObjectsArray;
-                resp["assets"]      = assetsArray;
-                return resp;
+                    ["name"]   = go.name,
+                    ["path"]   = GetPath(go),
+                    ["active"] = go.activeSelf,
+                });
             }
+
+            var assetsArray = new JsonArray();
+            foreach (var guid in Selection.assetGUIDs)
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                var type         = AssetDatabase.GetMainAssetTypeAtPath(assetPath);
+                assetsArray.Add(new JsonObject
+                {
+                    ["path"] = assetPath,
+                    ["guid"] = guid,
+                    ["type"] = type?.Name ?? "",
+                });
+            }
+
+            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+            resp["gameObjects"] = gameObjectsArray;
+            resp["assets"]      = assetsArray;
+            return resp;
         }
 
-        private static string GetPath(GameObject go)
+        static string GetPath(GameObject go)
         {
             string path = go.name;
             var parent  = go.transform.parent;

@@ -5,13 +5,38 @@ using UnityEngine;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
     internal static class ScriptableObjectCommands
     {
-        static ScriptableObjectCommands()
+        static SerializedObject Load(string assetPath, out string error)
         {
-            AgentBridge.Register(new ScriptableGetCmd());
-            AgentBridge.Register(new ScriptableSetCmd());
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                error = "path is required";
+                return null;
+            }
+            var asset = AssetDatabase.LoadAssetAtPath<ScriptableObject>(assetPath);
+            if (asset == null)
+            {
+                error = $"ScriptableObject not found at: {assetPath}";
+                return null;
+            }
+            error = null;
+            return new SerializedObject(asset);
+        }
+
+        static SerializedProperty FindProperty(SerializedObject so, string field)
+        {
+            if (string.IsNullOrEmpty(field)) return null;
+            var sp = so.FindProperty(field);
+            if (sp != null) return sp;
+            sp = so.FindProperty("m_" + field);
+            if (sp != null) return sp;
+            if (field.Length > 0)
+            {
+                sp = so.FindProperty("m_" + char.ToUpper(field[0]) + field.Substring(1));
+                if (sp != null) return sp;
+            }
+            return null;
         }
 
         private sealed class ScriptableGetCmd : IAgentCommand
@@ -98,38 +123,6 @@ namespace LLMDevTools
                 AssetDatabase.SaveAssetIfDirty(so.targetObject);
                 return AgentBridge.MakeResponse(uid, Cmd, "ok");
             }
-        }
-
-        static SerializedObject Load(string assetPath, out string error)
-        {
-            if (string.IsNullOrEmpty(assetPath))
-            {
-                error = "path is required";
-                return null;
-            }
-            var asset = AssetDatabase.LoadAssetAtPath<ScriptableObject>(assetPath);
-            if (asset == null)
-            {
-                error = $"ScriptableObject not found at: {assetPath}";
-                return null;
-            }
-            error = null;
-            return new SerializedObject(asset);
-        }
-
-        static SerializedProperty FindProperty(SerializedObject so, string field)
-        {
-            if (string.IsNullOrEmpty(field)) return null;
-            var sp = so.FindProperty(field);
-            if (sp != null) return sp;
-            sp = so.FindProperty("m_" + field);
-            if (sp != null) return sp;
-            if (field.Length > 0)
-            {
-                sp = so.FindProperty("m_" + char.ToUpper(field[0]) + field.Substring(1));
-                if (sp != null) return sp;
-            }
-            return null;
         }
     }
 }

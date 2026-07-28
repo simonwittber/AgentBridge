@@ -10,11 +10,8 @@ using UnityEngine;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
     public static class ScriptCommand
     {
-        static ScriptCommand() => AgentBridge.Register(new ExecuteScriptCmd());
-
         internal static string FindDotnet()
         {
             var exe  = Application.platform == RuntimePlatform.WindowsEditor ? "dotnet.exe" : "dotnet";
@@ -155,11 +152,11 @@ namespace LLMDevTools
         // Falls back to Assembly.Load if the type is unavailable.
         internal static class CollectibleLoader
         {
-            static readonly Type   _alcType      = Type.GetType("System.Runtime.Loader.AssemblyLoadContext, System.Runtime.Loader");
-            static readonly Type   _alcTypeFull  = _alcType ?? Type.GetType("System.Runtime.Loader.AssemblyLoadContext");
-            static readonly MethodInfo _loadStream   = _alcTypeFull?.GetMethod("LoadFromStream", new[] { typeof(Stream) });
-            static readonly MethodInfo _getCtx       = _alcTypeFull?.GetMethod("GetLoadContext", BindingFlags.Public | BindingFlags.Static);
-            static readonly MethodInfo _unload       = _alcTypeFull?.GetMethod("Unload");
+            static readonly Type      _alcTypeFull  = Type.GetType("System.Runtime.Loader.AssemblyLoadContext, System.Runtime.Loader")
+                                                   ?? Type.GetType("System.Runtime.Loader.AssemblyLoadContext");
+            static readonly MethodInfo _loadStream  = _alcTypeFull?.GetMethod("LoadFromStream", new[] { typeof(Stream) });
+            static readonly MethodInfo _getCtx      = _alcTypeFull?.GetMethod("GetLoadContext", BindingFlags.Public | BindingFlags.Static);
+            static readonly MethodInfo _unload      = _alcTypeFull?.GetMethod("Unload");
 
             internal static Assembly Load(byte[] bytes)
             {
@@ -181,8 +178,6 @@ namespace LLMDevTools
                 if (ctx != null) _unload.Invoke(ctx, null);
             }
         }
-
-        // ── execute_script ────────────────────────────────────────────────────
 
         private sealed class ExecuteScriptCmd : IAgentCommand
         {

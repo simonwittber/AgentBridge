@@ -4,62 +4,52 @@ using UnityEditor;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
-    internal static class MenuCommands
+    internal sealed class MenuItemCmd : IAgentCommand
     {
-        static MenuCommands()
+        public string    Cmd         => "menu_item";
+        public string    Description => "Invoke a Unity menu item by its full path string.";
+        public ArgSpec[] Args        => new[]
         {
-            AgentBridge.Register(new MenuItemCmd());
-            AgentBridge.Register(new UuidCmd());
-        }
+            new ArgSpec("path", "string", "", ""),
+        };
 
-        private sealed class MenuItemCmd : IAgentCommand
+        public JsonObject Execute(string uid, string requestJson)
         {
-            public string    Cmd         => "menu_item";
-            public string    Description => "Invoke a Unity menu item by its full path string.";
-            public ArgSpec[] Args        => new[]
-            {
-                new ArgSpec("path", "string", "", ""),
-            };
+            var node = JsonNode.Parse(requestJson);
+            var path = node?["path"]?.GetValue<string>() ?? "";
 
-            public JsonObject Execute(string uid, string requestJson)
+            if (string.IsNullOrEmpty(path))
             {
-                var node = JsonNode.Parse(requestJson);
-                var path = node?["path"]?.GetValue<string>() ?? "";
-
-                if (string.IsNullOrEmpty(path))
-                {
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = "path is required";
-                    return e;
-                }
-                bool executed = EditorApplication.ExecuteMenuItem(path);
-                if (executed)
-                {
-                    var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                    resp["path"] = path;
-                    return resp;
-                }
-                else
-                {
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = $"Menu item not found: {path}";
-                    return e;
-                }
+                var e = AgentBridge.MakeResponse(uid, Cmd, "error");
+                e["message"] = "path is required";
+                return e;
             }
-        }
-
-        private sealed class UuidCmd : IAgentCommand
-        {
-            public string Cmd         => "uuid";
-            public string Description => "";
-
-            public JsonObject Execute(string uid, string requestJson)
+            bool executed = EditorApplication.ExecuteMenuItem(path);
+            if (executed)
             {
                 var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["uuid"] = Guid.NewGuid().ToString();
+                resp["path"] = path;
                 return resp;
             }
+            else
+            {
+                var e = AgentBridge.MakeResponse(uid, Cmd, "error");
+                e["message"] = $"Menu item not found: {path}";
+                return e;
+            }
+        }
+    }
+
+    internal sealed class UuidCmd : IAgentCommand
+    {
+        public string Cmd         => "uuid";
+        public string Description => "";
+
+        public JsonObject Execute(string uid, string requestJson)
+        {
+            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+            resp["uuid"] = Guid.NewGuid().ToString();
+            return resp;
         }
     }
 }

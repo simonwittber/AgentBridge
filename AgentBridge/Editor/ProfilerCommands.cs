@@ -14,12 +14,6 @@ namespace LLMDevTools
 
         static ProfilerCommands()
         {
-            AgentBridge.Register(new ProfilerStartCmd());
-            AgentBridge.Register(new ProfilerStopCmd());
-            AgentBridge.Register(new ProfilerClearCmd());
-            AgentBridge.Register(new ProfilerGetSamplesCmd());
-            AgentBridge.Register(new ProfilerBenchmarkCmd());
-
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         }
 

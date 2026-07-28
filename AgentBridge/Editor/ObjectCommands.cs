@@ -6,74 +6,159 @@ using UnityEngine;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
-    internal static class ObjectCommands
+    internal sealed class ObjectCreateCmd : IAgentCommand
     {
-        static ObjectCommands()
+        public string    Cmd         => "object_create";
+        public string    Description => "Create a new GameObject, optionally as a 3D primitive.";
+        public ArgSpec[] Args        => new[]
         {
-            AgentBridge.Register(new ObjectCreateCmd());
-            AgentBridge.Register(new ObjectDeleteCmd());
-            AgentBridge.Register(new ObjectActiveCmd());
-            AgentBridge.Register(new ObjectRenameCmd());
-            AgentBridge.Register(new ObjectSelectCmd());
-        }
+            new ArgSpec("name",      "string", "GameObject", ""),
+            new ArgSpec("parent",    "string", "",           "Omit for scene root"),
+            new ArgSpec("primitive", "string", "",           "Cube, Sphere, Plane, Cylinder, Capsule, Quad"),
+        };
 
-        private sealed class ObjectCreateCmd : IAgentCommand
+        public JsonObject Execute(string uid, string requestJson)
         {
-            public string    Cmd         => "object_create";
-            public string    Description => "Create a new GameObject, optionally as a 3D primitive.";
-            public ArgSpec[] Args        => new[]
+            var p  = JsonUtility.FromJson<Params>(requestJson);
+            GameObject go;
+
+            if (!string.IsNullOrEmpty(p.primitive) &&
+                Enum.TryParse<PrimitiveType>(p.primitive, true, out var primType))
             {
-                new ArgSpec("name",      "string", "GameObject", ""),
-                new ArgSpec("parent",    "string", "",           "Omit for scene root"),
-                new ArgSpec("primitive", "string", "",           "Cube, Sphere, Plane, Cylinder, Capsule, Quad"),
-            };
-
-            public JsonObject Execute(string uid, string requestJson)
+                go      = GameObject.CreatePrimitive(primType);
+                go.name = string.IsNullOrEmpty(p.name) ? p.primitive : p.name;
+            }
+            else
             {
-                var p  = JsonUtility.FromJson<Params>(requestJson);
-                GameObject go;
-
-                if (!string.IsNullOrEmpty(p.primitive) &&
-                    Enum.TryParse<PrimitiveType>(p.primitive, true, out var primType))
-                {
-                    go      = GameObject.CreatePrimitive(primType);
-                    go.name = string.IsNullOrEmpty(p.name) ? p.primitive : p.name;
-                }
-                else
-                {
-                    go = new GameObject(string.IsNullOrEmpty(p.name) ? "GameObject" : p.name);
-                }
-
-                if (!string.IsNullOrEmpty(p.parent))
-                {
-                    var parent = SceneBridge.FindByPath(p.parent);
-                    if (parent != null) go.transform.SetParent(parent.transform, false);
-                }
-
-                Undo.RegisterCreatedObjectUndo(go, $"Create {go.name}");
-                SceneBridge.MarkDirty(go);
-
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["path"] = SceneBridge.GetPath(go);
-                return resp;
+                go = new GameObject(string.IsNullOrEmpty(p.name) ? "GameObject" : p.name);
             }
 
-            [Serializable] private class Params { public string name = ""; public string parent = ""; public string primitive = ""; }
+            if (!string.IsNullOrEmpty(p.parent))
+            {
+                var parent = SceneBridge.FindByPath(p.parent);
+                if (parent != null) go.transform.SetParent(parent.transform, false);
+            }
+
+            Undo.RegisterCreatedObjectUndo(go, $"Create {go.name}");
+            SceneBridge.MarkDirty(go);
+
+            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+            resp["path"] = SceneBridge.GetPath(go);
+            return resp;
         }
 
-        private sealed class ObjectDeleteCmd : IAgentCommand
-        {
-            public string    Cmd         => "object_delete";
-            public string    Description => "";
-            public ArgSpec[] Args        => new[]
-            {
-                new ArgSpec("path", "string", "", ""),
-            };
+        [Serializable] private class Params { public string name = ""; public string parent = ""; public string primitive = ""; }
+    }
 
-            public JsonObject Execute(string uid, string requestJson)
+    internal sealed class ObjectDeleteCmd : IAgentCommand
+    {
+        public string    Cmd         => "object_delete";
+        public string    Description => "";
+        public ArgSpec[] Args        => new[]
+        {
+            new ArgSpec("path", "string", "", ""),
+        };
+
+        public JsonObject Execute(string uid, string requestJson)
+        {
+            var p  = JsonUtility.FromJson<Params>(requestJson);
+            var go = SceneBridge.FindByPath(p.path);
+            if (go == null)
             {
-                var p  = JsonUtility.FromJson<Params>(requestJson);
+                var e = AgentBridge.MakeResponse(uid, Cmd, "error");
+                e["message"] = $"Not found: {p.path}";
+                return e;
+            }
+            Undo.DestroyObjectImmediate(go);
+            return AgentBridge.MakeResponse(uid, Cmd, "ok");
+        }
+
+        [Serializable] private class Params { public string path = ""; }
+    }
+
+    internal sealed class ObjectActiveCmd : IAgentCommand
+    {
+        public string    Cmd         => "object_active";
+        public string    Description => "";
+        public ArgSpec[] Args        => new[]
+        {
+            new ArgSpec("path",   "string", "",     ""),
+            new ArgSpec("active", "bool",   "true", ""),
+        };
+
+        public JsonObject Execute(string uid, string requestJson)
+        {
+            var p  = JsonUtility.FromJson<Params>(requestJson);
+            var go = SceneBridge.FindByPath(p.path);
+            if (go == null)
+            {
+                var e = AgentBridge.MakeResponse(uid, Cmd, "error");
+                e["message"] = $"Not found: {p.path}";
+                return e;
+            }
+            Undo.RecordObject(go, p.active ? "Activate Object" : "Deactivate Object");
+            go.SetActive(p.active);
+            SceneBridge.MarkDirty(go);
+            return AgentBridge.MakeResponse(uid, Cmd, "ok");
+        }
+
+        [Serializable] private class Params { public string path = ""; public bool active = true; }
+    }
+
+    internal sealed class ObjectRenameCmd : IAgentCommand
+    {
+        public string    Cmd         => "object_rename";
+        public string    Description => "";
+        public ArgSpec[] Args        => new[]
+        {
+            new ArgSpec("path", "string", "", ""),
+            new ArgSpec("name", "string", "", ""),
+        };
+
+        public JsonObject Execute(string uid, string requestJson)
+        {
+            var p  = JsonUtility.FromJson<Params>(requestJson);
+            var go = SceneBridge.FindByPath(p.path);
+            if (go == null)
+            {
+                var e = AgentBridge.MakeResponse(uid, Cmd, "error");
+                e["message"] = $"Not found: {p.path}";
+                return e;
+            }
+            if (string.IsNullOrEmpty(p.name))
+            {
+                var e = AgentBridge.MakeResponse(uid, Cmd, "error");
+                e["message"] = "name cannot be empty";
+                return e;
+            }
+            Undo.RecordObject(go, "Rename GameObject");
+            go.name = p.name;
+            SceneBridge.MarkDirty(go);
+            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+            resp["path"] = SceneBridge.GetPath(go);
+            return resp;
+        }
+
+        [Serializable] private class Params { public string path = ""; public string name = ""; }
+    }
+
+    internal sealed class ObjectSelectCmd : IAgentCommand
+    {
+        public string    Cmd         => "object_select";
+        public string    Description => "Select one or more GameObjects by path.";
+        public ArgSpec[] Args        => new[]
+        {
+            new ArgSpec("path",  "string", "", "Single path"),
+            new ArgSpec("paths", "string", "", "Comma-separated paths"),
+        };
+
+        public JsonObject Execute(string uid, string requestJson)
+        {
+            var p   = JsonUtility.FromJson<Params>(requestJson);
+            var gos = new List<UnityEngine.Object>();
+
+            if (!string.IsNullOrEmpty(p.path))
+            {
                 var go = SceneBridge.FindByPath(p.path);
                 if (go == null)
                 {
@@ -81,127 +166,29 @@ namespace LLMDevTools
                     e["message"] = $"Not found: {p.path}";
                     return e;
                 }
-                Undo.DestroyObjectImmediate(go);
-                return AgentBridge.MakeResponse(uid, Cmd, "ok");
+                gos.Add(go);
             }
 
-            [Serializable] private class Params { public string path = ""; }
-        }
-
-        private sealed class ObjectActiveCmd : IAgentCommand
-        {
-            public string    Cmd         => "object_active";
-            public string    Description => "";
-            public ArgSpec[] Args        => new[]
-            {
-                new ArgSpec("path",   "string", "",     ""),
-                new ArgSpec("active", "bool",   "true", ""),
-            };
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                var p  = JsonUtility.FromJson<Params>(requestJson);
-                var go = SceneBridge.FindByPath(p.path);
-                if (go == null)
+            if (!string.IsNullOrEmpty(p.paths))
+                foreach (var part in p.paths.Split(','))
                 {
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = $"Not found: {p.path}";
-                    return e;
+                    var go = SceneBridge.FindByPath(part.Trim());
+                    if (go != null) gos.Add(go);
                 }
-                Undo.RecordObject(go, p.active ? "Activate Object" : "Deactivate Object");
-                go.SetActive(p.active);
-                SceneBridge.MarkDirty(go);
-                return AgentBridge.MakeResponse(uid, Cmd, "ok");
+
+            if (gos.Count == 0)
+            {
+                var e = AgentBridge.MakeResponse(uid, Cmd, "error");
+                e["message"] = "No objects found";
+                return e;
             }
 
-            [Serializable] private class Params { public string path = ""; public bool active = true; }
+            Selection.objects = gos.ToArray();
+            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+            resp["selected"] = gos.Count;
+            return resp;
         }
 
-        private sealed class ObjectRenameCmd : IAgentCommand
-        {
-            public string    Cmd         => "object_rename";
-            public string    Description => "";
-            public ArgSpec[] Args        => new[]
-            {
-                new ArgSpec("path", "string", "", ""),
-                new ArgSpec("name", "string", "", ""),
-            };
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                var p  = JsonUtility.FromJson<Params>(requestJson);
-                var go = SceneBridge.FindByPath(p.path);
-                if (go == null)
-                {
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = $"Not found: {p.path}";
-                    return e;
-                }
-                if (string.IsNullOrEmpty(p.name))
-                {
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = "name cannot be empty";
-                    return e;
-                }
-                Undo.RecordObject(go, "Rename GameObject");
-                go.name = p.name;
-                SceneBridge.MarkDirty(go);
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["path"] = SceneBridge.GetPath(go);
-                return resp;
-            }
-
-            [Serializable] private class Params { public string path = ""; public string name = ""; }
-        }
-
-        private sealed class ObjectSelectCmd : IAgentCommand
-        {
-            public string    Cmd         => "object_select";
-            public string    Description => "Select one or more GameObjects by path.";
-            public ArgSpec[] Args        => new[]
-            {
-                new ArgSpec("path",  "string", "", "Single path"),
-                new ArgSpec("paths", "string", "", "Comma-separated paths"),
-            };
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                var p   = JsonUtility.FromJson<Params>(requestJson);
-                var gos = new List<UnityEngine.Object>();
-
-                if (!string.IsNullOrEmpty(p.path))
-                {
-                    var go = SceneBridge.FindByPath(p.path);
-                    if (go == null)
-                    {
-                        var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                        e["message"] = $"Not found: {p.path}";
-                        return e;
-                    }
-                    gos.Add(go);
-                }
-
-                if (!string.IsNullOrEmpty(p.paths))
-                    foreach (var part in p.paths.Split(','))
-                    {
-                        var go = SceneBridge.FindByPath(part.Trim());
-                        if (go != null) gos.Add(go);
-                    }
-
-                if (gos.Count == 0)
-                {
-                    var e = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    e["message"] = "No objects found";
-                    return e;
-                }
-
-                Selection.objects = gos.ToArray();
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["selected"] = gos.Count;
-                return resp;
-            }
-
-            [Serializable] private class Params { public string path = ""; public string paths = ""; }
-        }
+        [Serializable] private class Params { public string path = ""; public string paths = ""; }
     }
 }

@@ -3,43 +3,33 @@ using UnityEditor;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
-    public static class EditorBridge
+    internal sealed class PlayEnterCmd : IAgentCommand
     {
-        static EditorBridge()
+        public string    Cmd         => "play_enter";
+        public string    Description => "Enter play mode.";
+        public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
+
+        public JsonObject Execute(string uid, string requestJson)
         {
-            AgentBridge.Register(new PlayEnterCmd());
-            AgentBridge.Register(new PlayExitCmd());
+            EditorApplication.isPlaying = true;
+            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+            resp["playing"] = true;
+            return resp;
         }
+    }
 
-        private sealed class PlayEnterCmd : IAgentCommand
+    internal sealed class PlayExitCmd : IAgentCommand
+    {
+        public string    Cmd         => "play_exit";
+        public string    Description => "Exit play mode.";
+        public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
+
+        public JsonObject Execute(string uid, string requestJson)
         {
-            public string    Cmd         => "play_enter";
-            public string    Description => "Enter play mode.";
-            public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                EditorApplication.isPlaying = true;
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["playing"] = true;
-                return resp;
-            }
-        }
-
-        private sealed class PlayExitCmd : IAgentCommand
-        {
-            public string    Cmd         => "play_exit";
-            public string    Description => "Exit play mode.";
-            public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                EditorApplication.isPlaying = false;
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["playing"] = false;
-                return resp;
-            }
+            EditorApplication.isPlaying = false;
+            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+            resp["playing"] = false;
+            return resp;
         }
     }
 }

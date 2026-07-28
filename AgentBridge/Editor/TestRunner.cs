@@ -8,17 +8,8 @@ using UnityEngine;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
-    public static class TestRunner
+    internal static class TestRunner
     {
-        static TestRunner()
-        {
-            AgentBridge.Register(new RunEditorTestsCmd());
-            AgentBridge.Register(new RunPlayModeTestsCmd());
-        }
-
-        // ── Commands ──────────────────────────────────────────────────────────
-
         private sealed class RunEditorTestsCmd : IAgentCommand
         {
             public string    Cmd         => "run_editor_tests";
@@ -48,8 +39,6 @@ namespace LLMDevTools
             public JsonObject Execute(string uid, string requestJson) =>
                 RunTests(uid, Cmd, TestMode.PlayMode, requestJson);
         }
-
-        // ── Shared execution ──────────────────────────────────────────────────
 
         private static JsonObject RunTests(string uid, string cmd, TestMode mode, string requestJson)
         {
@@ -95,8 +84,6 @@ namespace LLMDevTools
             public string group    = "";
             public string assembly = "";
         }
-
-        // ── Callbacks ─────────────────────────────────────────────────────────
 
         private sealed class Listener : ICallbacks
         {

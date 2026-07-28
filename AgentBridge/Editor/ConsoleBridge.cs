@@ -27,7 +27,6 @@ namespace LLMDevTools
         {
             LoadExistingEntries();
             Application.logMessageReceived += OnLog;
-            AgentBridge.Register(new ConsoleLogsCmd());
         }
 
         private static void LoadExistingEntries()

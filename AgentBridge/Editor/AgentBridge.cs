@@ -102,11 +102,12 @@ namespace LLMDevTools
         {
             _startTime = EditorApplication.timeSinceStartup;
 
-            Register(new StatusCmd());
-            Register(new CommandsCmd());
-            Register(new CompileCmd());
-            Register(new RefreshCmd());
-            Register(new FocusCmd());
+            foreach (var type in TypeCache.GetTypesDerivedFrom<IAgentCommand>())
+            {
+                if (type.IsAbstract || type.IsInterface) continue;
+                try { Register((IAgentCommand)Activator.CreateInstance(type, nonPublic: true)); }
+                catch { }
+            }
 
             try
             {
@@ -131,7 +132,6 @@ namespace LLMDevTools
 
             WriteSession();
 
-            // Delay until all [InitializeOnLoad] ctors have run so every handler is registered.
             EditorApplication.delayCall += ReplayPending;
 
             SetupAssetWatcher();
