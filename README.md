@@ -1,27 +1,32 @@
 # AgentBridge
 
-An MCP server for Unity Editor. Install the package, run `dffrnt-agent serve`,
-and your LLM gets a full set of tools to inspect scenes, write scripts, run
-tests, and control the Editor — without leaving the chat.
+AgentBridge is an MCP server for the Unity Editor.
+Install the package, run `dffrnt-agent serve`, and your LLM can inspect scenes, write scripts, run tests, and control the Editor from the chat.
 
 ## Why AgentBridge
 
-Most Unity MCP solutions embed a WebSocket or TCP server inside the Unity process.
-That breaks on every domain reload, requires background threads to fight Unity's
-single-threaded API, and needs a free port on every machine.
+Most Unity MCP tools embed a WebSocket or TCP server inside the Unity process.
+That approach breaks on every domain reload.
+It needs background threads to work around Unity's single-threaded API.
+It also requires a free port on every machine.
 
-AgentBridge uses a file-based queue instead:
+AgentBridge uses a file queue instead:
 
-- Commands land in `Temp/agent_input` and are processed on Unity's main thread. No sockets, no marshalling, no port conflicts.
-- A heartbeat file (`Temp/agent_session`) lets the agent know whether Unity is idle, compiling, or in play mode before sending any command.
-- Domain reloads are transparent — the queue persists on disk and Unity picks up on the next update tick.
-- New commands are a single `IAgentCommand` class in any Editor assembly. No changes to the bridge or the Go harness.
+- Commands land in `Temp/agent/requests/` and run on Unity's main thread. No sockets, no marshalling, no port conflicts.
+- A heartbeat file (`Temp/agent/session.json`) tells the agent whether Unity is idle, compiling, or in play mode. The agent reads this file before each command.
+- Domain reloads are transparent. The queue stays on disk and Unity replays any pending request after reload.
+- New commands need only one `IAgentCommand` class in any Editor assembly. No changes to the bridge or the Go CLI are needed.
+
+## Requirements
+
+- Unity 6000.0 or later
+- Go 1.23 or later (only to build from source)
 
 ## Quickstart
 
 ### 1. Install the package
 
-**Window > Package Manager > + > Add package from git URL**
+Go to **Window > Package Manager > + > Add package from git URL** and enter:
 
 ```
 https://github.com/simonwittber/AgentBridge.git?path=/AgentBridge
@@ -30,13 +35,14 @@ https://github.com/simonwittber/AgentBridge.git?path=/AgentBridge
 For a specific version:
 
 ```
-https://github.com/simonwittber/AgentBridge.git?path=/AgentBridge#v0.2.0
+https://github.com/simonwittber/AgentBridge.git?path=/AgentBridge#v0.3.0
 ```
 
-### 2. Build the CLI
+### 2. Get the CLI
 
-Download a pre-built binary from the [latest release](https://github.com/simonwittber/AgentBridge/releases/latest)
-and place it on your `PATH`. Or build from source:
+Download a pre-built binary from the [latest release](https://github.com/simonwittber/AgentBridge/releases/latest) and place it on your `PATH`.
+
+To build from source:
 
 ```bash
 cd AgentBridge/Harness~/dffrnt-agent
@@ -44,7 +50,7 @@ go build -o dffrnt-agent .        # macOS / Linux
 go build -o dffrnt-agent.exe .    # Windows
 ```
 
-### 3. Wire into Claude Code
+### 3. Configure Claude Code
 
 Add to `.claude/settings.json` inside your Unity project:
 
@@ -59,17 +65,16 @@ Add to `.claude/settings.json` inside your Unity project:
 }
 ```
 
-Run `dffrnt-agent` from your Unity project root, or pass `--project <path>` to
-point it at the project directory.
+Run `dffrnt-agent` from your Unity project root, or pass `--project <path>` to set the project directory.
 
 ### 4. Open Unity and verify
 
-Start (or focus) your Unity project. In Claude Code, the `unity` MCP server
-will appear in `/mcp` with all bridge commands available as tools.
+Open or focus your Unity project.
+The `unity` MCP server appears in `/mcp` in Claude Code with all bridge commands available as tools.
 
-### 5. Send your first command
+### 5. Check status
 
-```
+```bash
 dffrnt-agent status
 ```
 
@@ -80,17 +85,9 @@ Expected output:
   "cmd": "status",
   "status": "ok",
   "uptime_s": 42.3,
-  "queued": 0,
   "busy": false
 }
 ```
-
----
-
-## Requirements
-
-- Unity 6000.0 or later
-- Go 1.23+ (only needed to build from source)
 
 ---
 
@@ -116,7 +113,7 @@ Expected output:
 | `scene_save` | Save the active scene |
 | `scene_new` | Create a new empty or default scene |
 
-### Hierarchy & objects
+### Hierarchy and objects
 
 | Command | Description |
 |---|---|
@@ -132,7 +129,7 @@ Expected output:
 | `reparent_object` | Move a GameObject to a new parent |
 | `set_transform` | Set position, rotation, and scale in one call |
 
-### Components & assets
+### Components and assets
 
 | Command | Description |
 |---|---|
@@ -143,7 +140,7 @@ Expected output:
 | `prefab_save` | Save and exit the current prefab stage |
 | `asset_info` | GUID and importer settings for an asset |
 | `asset_set` | Set an importer field and reimport |
-| `asset_find` | Find assets by type / label filter |
+| `asset_find` | Find assets by type or label filter |
 | `asset_create` | Create a new folder or material asset |
 | `asset_delete` | Delete an asset |
 | `asset_move` | Move an asset to a new path |
@@ -154,7 +151,7 @@ Expected output:
 | `scriptable_get` | Get a named serialized field from a ScriptableObject asset |
 | `scriptable_set` | Set a named serialized field on a ScriptableObject asset and save |
 
-### Editor & console
+### Editor and console
 
 | Command | Description |
 |---|---|
@@ -181,7 +178,7 @@ Expected output:
 | `profiler_get_samples` | Return summary stats for recorded markers |
 | `profiler_benchmark` | Fire a named marker with real CPU work to produce measurable samples |
 
-### Player settings & editor prefs
+### Player settings and editor prefs
 
 | Command | Description |
 |---|---|
@@ -190,7 +187,7 @@ Expected output:
 | `editor_pref_get` | Get a value from EditorPrefs |
 | `editor_pref_set` | Set a value in EditorPrefs |
 
-### Tags & layers
+### Tags and layers
 
 | Command | Description |
 |---|---|
@@ -230,13 +227,9 @@ Implement `IAgentCommand` in any Editor assembly:
 ```csharp
 using System.Text.Json.Nodes;
 using LLMDevTools;
-using UnityEditor;
 
-[InitializeOnLoad]
 public class MyCommand : IAgentCommand
 {
-    static MyCommand() => AgentBridge.Register(new MyCommand());
-
     public string    Cmd         => "my_cmd";
     public string    Description => "Does something useful.";
     public ArgSpec[] Args        => new[]
@@ -253,52 +246,57 @@ public class MyCommand : IAgentCommand
 }
 ```
 
+AgentBridge discovers the class automatically on the next domain reload.
+No `[InitializeOnLoad]` attribute or manual registration call is needed.
+
 ---
 
 ## Protocol
 
-Commands are newline-delimited JSON written to `Temp/agent_input`:
+Commands are JSON objects written to `Temp/agent/requests/<timestamp>-<uid>.json`:
 
 ```json
 {"uid":"a1b2c3d4","cmd":"compile"}
 ```
 
-Responses are appended to `Temp/agent_output`:
+Responses appear in `Temp/agent/responses/<uid>.json`:
 
 ```json
 {"uid":"a1b2c3d4","cmd":"compile","status":"ok","errors":[],"warnings":[]}
 ```
 
-Unity also writes `Temp/agent_session` every 5 seconds:
+Unity also writes `Temp/agent/session.json` every 5 seconds:
 
 ```json
-{"pid":12345,"state":"idle","active_scene":"Main","play_mode":false,"compile_errors":0,"written_at":1749123456789}
+{
+  "pid": 12345,
+  "state": "idle",
+  "active_scene": "Main",
+  "play_mode": false,
+  "compile_errors": 0,
+  "written_at": 1749123456789
+}
 ```
 
-`dffrnt-agent` reads this file to verify Unity is alive before sending any command.
-Output rotates at 2 MB; input is truncated on Unity startup.
+`dffrnt-agent` reads this file to check that Unity is alive before each command.
 
 ---
 
 ## Testing
 
-### Integration tests (MCP to Unity)
-
-These tests spawn the installed `dffrnt-agent` binary (must be on `PATH`) and drive
-it over the MCP protocol against a live Unity session. Build and install the binary
-first, open `AgentBridge/Example~` in Unity, then:
+Build and install the `dffrnt-agent` binary, open `AgentBridge/Example~` in Unity, then:
 
 ```bash
 cd AgentBridge/Harness~/dffrnt-agent
 go test -timeout 300s
 ```
 
-Tests are skipped automatically if Unity is not running or the session file is
-missing or stale.
+The tests run against a live Unity session over the MCP protocol.
+They skip automatically if Unity is not running or the session file is missing.
 
 ---
 
 ## LLM Agent Log window
 
-Open via **Window > General > LLM Agent Log**. Live scrolling view of all
-commands and responses — green = ok, red = error.
+Open via **Window > General > LLM Agent Log**.
+This window shows a live view of all commands and responses: green for success, red for error.

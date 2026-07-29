@@ -17,6 +17,28 @@ namespace LLMDevTools
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         }
 
+        // Parses "Category/MarkerName" → (category, markerName). Defaults to Scripts.
+        static (ProfilerCategory category, string markerName) ParseMarker(string entry)
+        {
+            var slash = entry.IndexOf('/');
+            if (slash < 0) return (ProfilerCategory.Scripts, entry);
+            var cat  = entry.Substring(0, slash);
+            var name = entry.Substring(slash + 1);
+            var category = cat switch
+            {
+                "Memory"    => ProfilerCategory.Memory,
+                "Render"    => ProfilerCategory.Render,
+                "Physics"   => ProfilerCategory.Physics,
+                "Audio"     => ProfilerCategory.Audio,
+                "Animation" => ProfilerCategory.Animation,
+                "AI"        => ProfilerCategory.Ai,
+                "Input"     => ProfilerCategory.Input,
+                "UI"        => ProfilerCategory.Gui,
+                _           => ProfilerCategory.Scripts,
+            };
+            return (category, name);
+        }
+
         static void OnPlayModeStateChanged(PlayModeStateChange state)
         {
             if (state != PlayModeStateChange.EnteredPlayMode) return;
@@ -27,21 +49,23 @@ namespace LLMDevTools
             DisposeAll();
             foreach (var node in names)
             {
-                var name = node?.GetValue<string>() ?? "";
-                if (!string.IsNullOrEmpty(name))
-                    s_recorders[name] = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, name, 300);
+                var entry = node?.GetValue<string>() ?? "";
+                if (string.IsNullOrEmpty(entry)) continue;
+                var (category, markerName) = ParseMarker(entry);
+                s_recorders[entry] = ProfilerRecorder.StartNew(category, markerName, 300);
             }
         }
 
-        static void StartRecorders(string[] names)
+        static void StartRecorders(string[] entries)
         {
             DisposeAll();
             var arr = new JsonArray();
-            foreach (var name in names)
+            foreach (var entry in entries)
             {
-                if (string.IsNullOrEmpty(name)) continue;
-                s_recorders[name] = ProfilerRecorder.StartNew(ProfilerCategory.Scripts, name, 300);
-                arr.Add(name);
+                if (string.IsNullOrEmpty(entry)) continue;
+                var (category, markerName) = ParseMarker(entry);
+                s_recorders[entry] = ProfilerRecorder.StartNew(category, markerName, 300);
+                arr.Add(entry);
             }
             SessionState.SetString(SessionKey, arr.ToJsonString());
         }
@@ -61,7 +85,7 @@ namespace LLMDevTools
         private sealed class ProfilerStartCmd : IAgentCommand
         {
             public string    Cmd         => "profiler_start";
-            public string    Description => "Begin recording named profiler markers (ProfilerCategory.Scripts). If domain reload on play mode entry is enabled (the default), recorders are recreated automatically when play mode enters using the same marker names.";
+            public string    Description => "Begin recording named profiler markers. Prefix with a category using 'Category/Name' (e.g. 'Memory/GC.Alloc'). Defaults to ProfilerCategory.Scripts. Recorders are recreated automatically on play mode entry.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("markers", "any", "", "JSON array of marker name strings to record"),
@@ -157,33 +181,49 @@ namespace LLMDevTools
 
                     var recorder = kvp.Value;
                     int count    = recorder.Count;
+                    bool isBytes = recorder.Valid && recorder.UnitType == ProfilerMarkerDataUnit.Bytes;
 
-                    double lastMs = 0, sumMs = 0, minMs = double.MaxValue, maxMs = 0;
+                    double last = 0, sum = 0, min = double.MaxValue, max = 0;
                     var samplesArr = raw ? new JsonArray() : null;
 
                     for (int i = 0; i < count; i++)
                     {
-                        double ms = recorder.GetSample(i).Value / 1_000_000.0;
-                        if (i == count - 1) lastMs = ms;
-                        sumMs += ms;
-                        if (ms < minMs) minMs = ms;
-                        if (ms > maxMs) maxMs = ms;
-                        samplesArr?.Add(System.Math.Round(ms, 3));
+                        double v = isBytes
+                            ? recorder.GetSample(i).Value
+                            : recorder.GetSample(i).Value / 1_000_000.0;
+                        if (i == count - 1) last = v;
+                        sum += v;
+                        if (v < min) min = v;
+                        if (v > max) max = v;
+                        samplesArr?.Add(System.Math.Round(v, isBytes ? 0 : 3));
                     }
 
-                    double avgMs = count > 0 ? sumMs / count : 0;
-                    if (count == 0) minMs = 0;
+                    double avg = count > 0 ? sum / count : 0;
+                    if (count == 0) min = 0;
 
+                    int    dp    = isBytes ? 0 : 3;
+                    double rLast = System.Math.Round(last, dp);
+                    double rAvg  = System.Math.Round(avg,  dp);
+                    double rMin  = System.Math.Round(min,  dp);
+                    double rMax  = System.Math.Round(max,  dp);
                     var entry = new JsonObject
                     {
                         ["name"]        = kvp.Key,
+                        ["unit"]        = isBytes ? "bytes" : "ms",
                         ["valid"]       = recorder.Valid,
                         ["sampleCount"] = count,
-                        ["lastMs"]      = System.Math.Round(lastMs, 3),
-                        ["avgMs"]       = System.Math.Round(avgMs,  3),
-                        ["minMs"]       = System.Math.Round(minMs,  3),
-                        ["maxMs"]       = System.Math.Round(maxMs,  3),
+                        ["last"]        = rLast,
+                        ["avg"]         = rAvg,
+                        ["min"]         = rMin,
+                        ["max"]         = rMax,
                     };
+                    if (!isBytes)
+                    {
+                        entry["lastMs"] = rLast;
+                        entry["avgMs"]  = rAvg;
+                        entry["minMs"]  = rMin;
+                        entry["maxMs"]  = rMax;
+                    }
                     if (samplesArr != null)
                         entry["samples"] = samplesArr;
 
