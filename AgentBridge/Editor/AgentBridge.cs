@@ -65,27 +65,29 @@ namespace LLMDevTools
         internal static void MarkRefreshNeeded()  => _refreshNeeded = true;
         internal static void ClearRefreshNeeded() => _refreshNeeded = false;
 
-        private static readonly HashSet<string> _noWarnCmds = new()
-            { "compile", "refresh", "status", "focus", "list_commands", "asset_write_text" };
-
-        private static readonly HashSet<string> _noRefreshWarnCmds = new()
+        private static readonly HashSet<string> _noCompileBlockCmds = new()
         {
-            "compile", "refresh", "status", "focus", "list_commands",
+            "compile", "refresh", "execute_script", "run_editor_tests", "run_playmode_tests",
+            "status", "list_commands", "console_logs",
+            "profiler_get_samples", "profiler_start", "profiler_stop", "profiler_clear",
             "asset_write_text", "asset_create", "asset_delete", "asset_move", "asset_copy", "asset_set",
         };
 
-        internal static void InjectWarnings(JsonObject resp)
+        private static readonly HashSet<string> _noRefreshBlockCmds = new()
         {
-            string cmd  = resp["cmd"]?.GetValue<string>() ?? "";
-            string warn = "";
-            if (_scriptsDirty  && !_noWarnCmds.Contains(cmd))
-                warn = "Scripts were modified since the last compile — call 'compile' before relying on these results.";
-            if (_refreshNeeded && !_noRefreshWarnCmds.Contains(cmd))
-            {
-                const string r = "Assets have changed since the last refresh — call 'refresh' to sync the AssetDatabase.";
-                warn = warn.Length > 0 ? warn + " " + r : r;
-            }
-            if (warn.Length > 0) resp["_warning"] = warn;
+            "compile", "refresh",
+            "status", "list_commands", "console_logs",
+            "profiler_get_samples", "profiler_start", "profiler_stop", "profiler_clear",
+            "asset_write_text", "asset_create", "asset_delete", "asset_move", "asset_copy", "asset_set",
+        };
+
+        internal static string CheckBlocked(string cmd)
+        {
+            if (_scriptsDirty && !_noCompileBlockCmds.Contains(cmd))
+                return "Scripts have changed and need recompilation. Call 'compile' before running other commands.";
+            if (_refreshNeeded && !_noRefreshBlockCmds.Contains(cmd))
+                return "Assets have changed and need reimport. Call 'refresh' before running other commands.";
+            return null;
         }
 
         public static void Register(IAgentCommand handler) => _handlers[handler.Cmd] = handler;
@@ -281,6 +283,15 @@ namespace LLMDevTools
             _pendingFile        = file;
             _pendingRequestJson = json;
 
+            var blocked = CheckBlocked(cmd);
+            if (blocked != null)
+            {
+                var r = MakeResponse(uid, cmd, "error");
+                r["message"] = blocked;
+                Respond(r);
+                return;
+            }
+
             if (_handlers.TryGetValue(cmd, out var handler))
             {
                 JsonObject resp;
@@ -311,7 +322,6 @@ namespace LLMDevTools
                 if (!string.IsNullOrEmpty(uid))
                 {
                     Directory.CreateDirectory(ResponsesDir);
-                    InjectWarnings(resp);
                     File.WriteAllText(Path.Combine(ResponsesDir, uid + ".json"), resp.ToJsonString());
                     if (_pendingFile != null && File.Exists(_pendingFile)) SafeDelete(_pendingFile);
                     AppendLog(BuildLogEntry(resp));

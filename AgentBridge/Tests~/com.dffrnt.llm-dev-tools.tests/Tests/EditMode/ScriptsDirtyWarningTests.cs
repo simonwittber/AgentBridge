@@ -1,71 +1,83 @@
-using System.Text.Json.Nodes;
 using NUnit.Framework;
 
 namespace LLMDevTools.Tests
 {
     [TestFixture]
-    public class ScriptsDirtyWarningTests
+    public class ScriptsDirtyTests
     {
         [TearDown]
-        public void TearDown() => AgentBridge.ClearScriptsDirty();
-
-        // ── InjectWarnings ────────────────────────────────────────────────────
-
-        [Test]
-        public void Warning_AbsentWhenNotDirty()
+        public void TearDown()
         {
-            var resp = Resp("hierarchy");
-            AgentBridge.InjectWarnings(resp);
-            Assert.That(resp["_warning"], Is.Null);
+            AgentBridge.ClearScriptsDirty();
+            AgentBridge.ClearRefreshNeeded();
         }
 
         [Test]
-        public void Warning_PresentWhenDirty()
+        public void NotBlocked_WhenClean()
+        {
+            Assert.That(AgentBridge.CheckBlocked("hierarchy"), Is.Null);
+        }
+
+        [Test]
+        public void Blocked_WhenScriptsDirty()
         {
             AgentBridge.MarkScriptsDirty();
-            var resp = Resp("hierarchy");
-            AgentBridge.InjectWarnings(resp);
-            Assert.That(resp["_warning"]?.GetValue<string>(), Is.Not.Null.And.Not.Empty);
+            Assert.That(AgentBridge.CheckBlocked("hierarchy"), Is.Not.Null.And.Not.Empty);
         }
 
         [Test]
-        public void Warning_AbsentAfterClear()
+        public void NotBlocked_AfterClear()
         {
             AgentBridge.MarkScriptsDirty();
             AgentBridge.ClearScriptsDirty();
-            var resp = Resp("hierarchy");
-            AgentBridge.InjectWarnings(resp);
-            Assert.That(resp["_warning"], Is.Null);
+            Assert.That(AgentBridge.CheckBlocked("hierarchy"), Is.Null);
+        }
+
+        [TestCase("compile")]
+        [TestCase("refresh")]
+        [TestCase("execute_script")]
+        [TestCase("run_editor_tests")]
+        [TestCase("status")]
+        [TestCase("list_commands")]
+        [TestCase("console_logs")]
+        [TestCase("asset_write_text")]
+        [TestCase("asset_create")]
+        [TestCase("asset_delete")]
+        public void NotBlocked_WhenScriptsDirty_ForExemptCommands(string cmd)
+        {
+            AgentBridge.MarkScriptsDirty();
+            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Null, $"'{cmd}' should be exempt from compile block");
         }
 
         [TestCase("compile")]
         [TestCase("refresh")]
         [TestCase("status")]
-        [TestCase("focus")]
         [TestCase("list_commands")]
         [TestCase("asset_write_text")]
-        public void Warning_SuppressedForExcludedCommands(string cmd)
+        [TestCase("asset_create")]
+        public void NotBlocked_WhenRefreshNeeded_ForExemptCommands(string cmd)
         {
-            AgentBridge.MarkScriptsDirty();
-            var resp = Resp(cmd);
-            AgentBridge.InjectWarnings(resp);
-            Assert.That(resp["_warning"], Is.Null, $"expected no warning for '{cmd}'");
+            AgentBridge.MarkRefreshNeeded();
+            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Null, $"'{cmd}' should be exempt from refresh block");
         }
 
         [TestCase("object_create")]
         [TestCase("component_get")]
         [TestCase("hierarchy")]
-        public void Warning_PresentForNonExcludedCommands(string cmd)
+        [TestCase("scene_info")]
+        public void Blocked_WhenScriptsDirty_ForNonExemptCommands(string cmd)
         {
             AgentBridge.MarkScriptsDirty();
-            var resp = Resp(cmd);
-            AgentBridge.InjectWarnings(resp);
-            Assert.That(resp["_warning"]?.GetValue<string>(), Is.Not.Null.And.Not.Empty,
-                $"expected warning for '{cmd}'");
+            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Not.Null.And.Not.Empty, $"'{cmd}' should be blocked when scripts are dirty");
         }
 
-        // ── helpers ───────────────────────────────────────────────────────────
-
-        private static JsonObject Resp(string cmd) => new() { ["uid"] = "test", ["cmd"] = cmd, ["status"] = "ok" };
+        [TestCase("object_create")]
+        [TestCase("hierarchy")]
+        [TestCase("scene_info")]
+        public void Blocked_WhenRefreshNeeded_ForNonExemptCommands(string cmd)
+        {
+            AgentBridge.MarkRefreshNeeded();
+            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Not.Null.And.Not.Empty, $"'{cmd}' should be blocked when refresh is needed");
+        }
     }
 }
