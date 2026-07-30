@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Commands now return a hard error when scripts need recompilation or assets need reimport, instead of appending a `_warning` field. The error message tells the caller to run `compile` or `refresh` first. Exempt commands are always allowed: `status`, `list_commands`, `console_logs`, `profiler_*`, `compile`, `refresh`, `execute_script`, `run_editor_tests`, `run_playmode_tests`, `asset_write_text`, `asset_create`, `asset_delete`, `asset_move`, `asset_copy`, and `asset_set`.
+
 ## [0.3.0] - 2026-07-28
 
 ### Added
