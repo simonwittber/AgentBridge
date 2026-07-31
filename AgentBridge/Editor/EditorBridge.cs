@@ -6,7 +6,7 @@ namespace LLMDevTools
     internal sealed class PlayEnterCmd : IAgentCommand
     {
         public string    Cmd         => "play_enter";
-        public string    Description => "Enter play mode.";
+        public string    Description => "Enter play mode. Fires a play_mode_entered notification when the transition completes.";
         public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
         public JsonObject Execute(string uid, string requestJson)
@@ -21,7 +21,7 @@ namespace LLMDevTools
     internal sealed class PlayExitCmd : IAgentCommand
     {
         public string    Cmd         => "play_exit";
-        public string    Description => "Exit play mode.";
+        public string    Description => "Exit play mode. Fires a play_mode_exited notification when the transition completes.";
         public ArgSpec[] Args        => System.Array.Empty<ArgSpec>();
 
         public JsonObject Execute(string uid, string requestJson)

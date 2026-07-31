@@ -8,12 +8,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 // shared is the single MCP server process used for the entire test session.
 var shared *mcpClient
+
+// testProject is the resolved Unity project path, set in TestMain.
+var testProject string
 
 func findBinary() string {
 	candidates := []string{"dffrnt-agent", "dffrnt-agent.exe"}
@@ -51,6 +55,7 @@ func TestMain(m *testing.M) {
 		}
 		project = abs
 	}
+	testProject = project
 
 	// Check Unity is running before starting the server.
 	data, err := os.ReadFile(filepath.Join(project, "Temp", "agent", "session.json"))
@@ -81,10 +86,12 @@ func TestMain(m *testing.M) {
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 type mcpClient struct {
-	cmd    *exec.Cmd
-	enc    *json.Encoder
-	dec    *bufio.Scanner
-	nextID int
+	cmd     *exec.Cmd
+	enc     *json.Encoder
+	nextID  int
+	notifCh chan map[string]any
+	mu      sync.Mutex
+	pending map[int]chan map[string]any
 }
 
 func launchMCPServer(binary, project string) *mcpClient {
@@ -103,24 +110,23 @@ func launchMCPServer(binary, project string) *mcpClient {
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 4*1024*1024), 4*1024*1024) // 4 MB for large responses (e.g. base64 screenshots)
 	c := &mcpClient{
-		cmd:    cmd,
-		enc:    json.NewEncoder(stdin),
-		dec:    scanner,
-		nextID: 1,
+		cmd:     cmd,
+		enc:     json.NewEncoder(stdin),
+		nextID:  1,
+		notifCh: make(chan map[string]any, 64),
+		pending: make(map[int]chan map[string]any),
 	}
-	// Perform MCP handshake using a dummy testing.T-like fatal.
-	msg := map[string]any{
+	// Perform MCP handshake by reading directly before the background reader starts.
+	c.enc.Encode(map[string]any{
 		"jsonrpc": "2.0", "id": 0, "method": "initialize",
 		"params": map[string]any{
 			"protocolVersion": "2024-11-05",
 			"capabilities":    map[string]any{},
 			"clientInfo":      map[string]any{"name": "test", "version": "0.0.1"},
 		},
-	}
-	c.enc.Encode(msg)
-	// Drain the initialize response.
-	for c.dec.Scan() {
-		line := strings.TrimSpace(c.dec.Text())
+	})
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
@@ -132,6 +138,35 @@ func launchMCPServer(binary, project string) *mcpClient {
 		}
 	}
 	c.enc.Encode(map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+	// Background reader routes all lines: responses to pending channels, notifications to notifCh.
+	go func() {
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			var msg map[string]any
+			if json.Unmarshal([]byte(line), &msg) != nil {
+				continue
+			}
+			if _, hasID := msg["id"]; !hasID {
+				select {
+				case c.notifCh <- msg:
+				default:
+				}
+				continue
+			}
+			id := int(msg["id"].(float64))
+			c.mu.Lock()
+			ch, ok := c.pending[id]
+			c.mu.Unlock()
+			if ok {
+				ch <- msg
+			}
+		}
+	}()
+
 	return c
 }
 
@@ -139,6 +174,17 @@ func (c *mcpClient) call(t *testing.T, method string, params any) map[string]any
 	t.Helper()
 	id := c.nextID
 	c.nextID++
+
+	ch := make(chan map[string]any, 1)
+	c.mu.Lock()
+	c.pending[id] = ch
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		delete(c.pending, id)
+		c.mu.Unlock()
+	}()
+
 	msg := map[string]any{"jsonrpc": "2.0", "id": id, "method": method}
 	if params != nil {
 		msg["params"] = params
@@ -147,38 +193,9 @@ func (c *mcpClient) call(t *testing.T, method string, params any) map[string]any
 		t.Fatalf("write %s: %v", method, err)
 	}
 
-	type result struct {
-		resp map[string]any
-		err  string
-	}
-	ch := make(chan result, 1)
-	go func() {
-		for c.dec.Scan() {
-			line := strings.TrimSpace(c.dec.Text())
-			if line == "" {
-				continue
-			}
-			var resp map[string]any
-			if json.Unmarshal([]byte(line), &resp) != nil {
-				continue
-			}
-			if _, hasID := resp["id"]; !hasID {
-				continue // notification
-			}
-			if resp["id"] == float64(id) {
-				ch <- result{resp: resp}
-				return
-			}
-		}
-		ch <- result{err: "connection closed"}
-	}()
-
 	select {
-	case r := <-ch:
-		if r.err != "" {
-			t.Fatalf("%s (id=%d): %s", method, id, r.err)
-		}
-		return r.resp
+	case resp := <-ch:
+		return resp
 	case <-time.After(150 * time.Second):
 		t.Fatalf("timeout waiting for %s (id=%d)", method, id)
 		return nil
@@ -227,6 +244,53 @@ func (c *mcpClient) callTool(t *testing.T, name string, args map[string]any) map
 
 func testName(suffix string) string {
 	return fmt.Sprintf("[MCP-%s-%d]", suffix, time.Now().UnixMilli())
+}
+
+// waitNotification blocks until a notifications/message with the given method
+// arrives on the client, or until timeout elapses.
+func (c *mcpClient) waitNotification(t *testing.T, method string, timeout time.Duration) map[string]any {
+	t.Helper()
+	deadline := time.After(timeout)
+	for {
+		select {
+		case n := <-c.notifCh:
+			if m, _ := n["method"].(string); m == method {
+				return n
+			}
+		case <-deadline:
+			t.Fatalf("timeout waiting for notification %q", method)
+			return nil
+		}
+	}
+}
+
+// waitTypedNotification blocks until a notifications/message whose inner
+// data.type equals eventType arrives, draining unrelated notifications.
+func (c *mcpClient) waitTypedNotification(t *testing.T, eventType string, timeout time.Duration) map[string]any {
+	t.Helper()
+	deadline := time.After(timeout)
+	for {
+		select {
+		case n := <-c.notifCh:
+			if m, _ := n["method"].(string); m != "notifications/message" {
+				continue
+			}
+			params, _ := n["params"].(map[string]any)
+			if params == nil {
+				continue
+			}
+			data, _ := params["data"].(map[string]any)
+			if data == nil {
+				continue
+			}
+			if data["type"] == eventType {
+				return n
+			}
+		case <-deadline:
+			t.Fatalf("timeout waiting for notification with type=%q", eventType)
+			return nil
+		}
+	}
 }
 
 // saveIfDirty saves the active scene if it has unsaved changes, preventing

@@ -61,6 +61,12 @@ func main() {
 				die("--unity requires a value")
 			}
 			cfg.UnityPath = os.Args[i]
+		case "--agent-id":
+			i++
+			if i >= len(os.Args) {
+				die("--agent-id requires a value")
+			}
+			cfg.AgentID = os.Args[i]
 		case "--args":
 			i++
 			if i >= len(os.Args) {
@@ -86,6 +92,12 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Usage: agent [--project <path>] [--timeout <s>] <cmd> [key=value ...]")
 		fmt.Fprintln(os.Stderr, "       agent [--project <path>] serve")
 		os.Exit(1)
+	}
+
+	if cfg.Project == defaultProject {
+		if found := findUnityProject(); found != "" {
+			cfg.Project = found
+		}
 	}
 
 	if cmd == "serve" {

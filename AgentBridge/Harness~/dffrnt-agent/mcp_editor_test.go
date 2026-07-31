@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestMCP_ConsoleLogs(t *testing.T) {
@@ -202,34 +203,8 @@ func TestMCP_Screenshot(t *testing.T) {
 	if p["status"] != "ok" {
 		t.Fatalf("screenshot failed: %v", p)
 	}
-	path, _ := p["path"].(string)
-	if path == "" {
-		t.Error("missing or empty path in screenshot response")
-	}
-}
-
-func TestMCP_Screenshot_ReturnsPath(t *testing.T) {
-	c := shared
-
-	resp := c.call(t, "tools/call", map[string]any{
-		"name":      "screenshot",
-		"arguments": map[string]any{},
-	})
-	if errVal, ok := resp["error"]; ok {
-		t.Fatalf("MCP error calling screenshot: %v", errVal)
-	}
-	result, _ := resp["result"].(map[string]any)
-	if result == nil {
-		t.Fatalf("no result: %v", resp)
-	}
-	content, _ := result["content"].([]any)
-	if len(content) == 0 {
-		t.Fatal("empty content in screenshot result")
-	}
-	first, _ := content[0].(map[string]any)
-	if first["type"] != "text" {
-		t.Fatalf("expected text content, got type %v", first["type"])
-	}
+	// Wait for the async capture to finish before the next test can call screenshot.
+	c.waitTypedNotification(t, "screenshot_ready", 10*time.Second)
 }
 
 func TestMCP_Screenshot_MaxSize(t *testing.T) {
@@ -239,9 +214,14 @@ func TestMCP_Screenshot_MaxSize(t *testing.T) {
 	if p["status"] != "ok" {
 		t.Fatalf("screenshot failed: %v", p)
 	}
-	filePath, _ := p["path"].(string)
+	// Path is not in the response; it arrives in the screenshot_ready notification.
+	n := c.waitTypedNotification(t, "screenshot_ready", 10*time.Second)
+	params, _ := n["params"].(map[string]any)
+	outer, _ := params["data"].(map[string]any)
+	inner, _ := outer["data"].(map[string]any)
+	filePath, _ := inner["path"].(string)
 	if filePath == "" {
-		t.Fatal("missing path in screenshot response")
+		t.Fatal("missing path in screenshot_ready notification")
 	}
 	raw, err := os.ReadFile(filePath)
 	if err != nil {

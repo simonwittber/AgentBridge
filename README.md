@@ -161,7 +161,7 @@ Expected output:
 | `menu_item` | Invoke a Unity menu item by path |
 | `run_editor_tests` | Run edit-mode tests; returns pass/fail/skip |
 | `run_playmode_tests` | Run play-mode tests; returns pass/fail/skip |
-| `screenshot` | Render scene view or main camera to PNG; returns the file path |
+| `screenshot` | Capture the current view to PNG; returns immediately and fires a `screenshot_ready` notification with the file path |
 | `execute_script` | Compile and run a C# snippet in the Editor |
 | `selection_get` | Return the currently selected GameObjects and assets |
 | `undo` | Perform an undo operation |
@@ -256,7 +256,7 @@ No `[InitializeOnLoad]` attribute or manual registration call is needed.
 Commands are JSON objects written to `Temp/agent/requests/<timestamp>-<uid>.json`:
 
 ```json
-{"uid":"a1b2c3d4","cmd":"compile"}
+{"uid":"a1b2c3d4","cmd":"compile","agent_id":"agent-1"}
 ```
 
 Responses appear in `Temp/agent/responses/<uid>.json`:
@@ -274,11 +274,28 @@ Unity also writes `Temp/agent/session.json` every 5 seconds:
   "active_scene": "Main",
   "play_mode": false,
   "compile_errors": 0,
+  "agent_id": "",
   "written_at": 1749123456789
 }
 ```
 
 `dffrnt-agent` reads this file to check that Unity is alive before each command.
+`agent_id` is empty when no command is active and contains the current agent identifier when a command runs.
+
+### Notifications
+
+Unity writes compiler and asset-import lifecycle events to `Temp/agent/notifications/<ts>-<uid>.json`.
+In `serve` mode, `dffrnt-agent` polls this directory every 500 ms and forwards each event to MCP clients as a `notifications/message`.
+
+Example notification file:
+
+```json
+{"type":"compile_finished","data":{"error_count":0},"written_at":1749123456789}
+```
+
+Event types: `compile_started`, `compile_finished`, `compile_failure`, `refresh_started`, `refresh_finished`, `play_mode_entered`, `play_mode_exited`, `scene_opened`, `screenshot_ready`.
+
+Commands that trigger async state changes note their notifications in the tool description.
 
 ---
 

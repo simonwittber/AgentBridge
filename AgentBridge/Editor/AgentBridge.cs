@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using UnityEditor;
 using UnityEditor.Compilation;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -31,14 +32,16 @@ namespace LLMDevTools
     [InitializeOnLoad]
     public static class AgentBridge
     {
-        private enum State { Idle, Busy, Reloading }
+        private enum State { Idle, Busy, Reloading, AwaitCompile, AwaitRefresh }
 
-        private const string RequestsDir  = "Temp/agent/requests";
-        private const string ResponsesDir = "Temp/agent/responses";
-        private const string SessionPath  = "Temp/agent/session.json";
-        internal const string LogPath     = "Temp/agent/log";
-        private const double PollInterval = 0.25;
-        private const double Heartbeat    = 5.0;
+        private const string RequestsDir       = "Temp/agent/requests";
+        private const string ResponsesDir      = "Temp/agent/responses";
+        private const string NotificationsDir  = "Temp/agent/notifications";
+        private const string SessionPath       = "Temp/agent/session.json";
+        internal const string LogPath          = "Temp/agent/log";
+        private const double PollInterval      = 0.25;
+        private const double Heartbeat         = 5.0;
+        private const double AutoCompileDelay  = 10.0;
 
         private static readonly long   _sessionId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         private static readonly double _startTime;
@@ -48,6 +51,7 @@ namespace LLMDevTools
         private static string _pendingCmd;
         private static string _pendingFile;
         private static string _pendingRequestJson;
+        private static string _pendingAgentId;
         private static double _nextPoll;
         private static double _nextHeartbeat;
         private static bool   _wasPlayingBeforeReload;
@@ -59,6 +63,7 @@ namespace LLMDevTools
         private static volatile bool     _refreshNeeded;
         private static bool              _wasUpdating;
         private static FileSystemWatcher _assetWatcher;
+        private static double            _lastScriptWrite = double.MinValue;
 
         internal static void MarkScriptsDirty()   => _scriptsDirty  = true;
         internal static void ClearScriptsDirty()  => _scriptsDirty  = false;
@@ -90,6 +95,26 @@ namespace LLMDevTools
             return null;
         }
 
+        internal static void Notify(string type, JsonObject data)
+        {
+            try
+            {
+                var ts  = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var uid = Guid.NewGuid().ToString("N")[..8];
+                var entry = new JsonObject
+                {
+                    ["type"]       = type,
+                    ["data"]       = data,
+                    ["written_at"] = ts,
+                };
+                Directory.CreateDirectory(NotificationsDir);
+                File.WriteAllText(
+                    Path.Combine(NotificationsDir, $"{ts:D20}-{uid}.json"),
+                    entry.ToJsonString());
+            }
+            catch { }
+        }
+
         public static void Register(IAgentCommand handler) => _handlers[handler.Cmd] = handler;
 
         public static JsonObject TestInvoke(string cmd, string requestJson = "{}")
@@ -115,6 +140,7 @@ namespace LLMDevTools
             {
                 Directory.CreateDirectory(RequestsDir);
                 Directory.CreateDirectory(ResponsesDir);
+                Directory.CreateDirectory(NotificationsDir);
             }
             catch { }
 
@@ -131,6 +157,7 @@ namespace LLMDevTools
             CompilationPipeline.compilationFinished         += OnCompilationFinished;
             EditorApplication.update                        += OnUpdate;
             EditorApplication.playModeStateChanged          += OnPlayModeChanged;
+            EditorSceneManager.sceneOpened                  += OnSceneOpened;
 
             WriteSession();
 
@@ -151,7 +178,7 @@ namespace LLMDevTools
                 var line = File.ReadAllText(file).Trim();
                 var req  = JsonUtility.FromJson<Request>(line);
                 if (!string.IsNullOrEmpty(req?.uid) && !string.IsNullOrEmpty(req?.cmd))
-                    Dispatch(req.uid, req.cmd, line, file);
+                    Dispatch(req.uid, req.cmd, req.agent_id, line, file);
             }
             catch { }
         }
@@ -161,9 +188,28 @@ namespace LLMDevTools
         private static void OnPlayModeChanged(PlayModeStateChange change)
         {
             if (change == PlayModeStateChange.EnteredPlayMode)
+            {
                 _wasPlayingBeforeReload = true;
+                Notify("play_mode_entered", new JsonObject());
+            }
             else if (change == PlayModeStateChange.ExitingPlayMode)
+            {
                 _wasPlayingBeforeReload = false;
+            }
+            else if (change == PlayModeStateChange.EnteredEditMode)
+            {
+                Notify("play_mode_exited", new JsonObject());
+            }
+        }
+
+        private static void OnSceneOpened(Scene scene, OpenSceneMode mode)
+        {
+            Notify("scene_opened", new JsonObject
+            {
+                ["name"] = scene.name,
+                ["path"] = scene.path,
+                ["mode"] = mode.ToString(),
+            });
         }
 
         private static void OnBeforeReload()
@@ -191,39 +237,66 @@ namespace LLMDevTools
             // Request file stays on disk — replayed automatically after reload.
         }
 
-        private static void OnCompilationStarted(object _) { _compileErrorCount = 0; _scriptsDirty = false; }
+        private static void OnCompilationStarted(object _)
+        {
+            _compileErrorCount = 0;
+            _scriptsDirty      = false;
+            Notify("compile_started", new JsonObject());
+        }
 
         private static void OnAssemblyCompilationFinished(string _, CompilerMessage[] messages)
         {
             foreach (var m in messages)
                 if (m.type == CompilerMessageType.Error) _compileErrorCount++;
-            if (_pendingCmd == "compile")
+            if (_pendingCmd == "compile" || _state == State.AwaitCompile)
                 _compileMessages.AddRange(messages);
         }
 
         private static void OnCompilationFinished(object _)
         {
-            if (_pendingCmd != "compile") return;
-
-            var errors   = new JsonArray();
-            var warnings = new JsonArray();
-            foreach (var m in _compileMessages)
+            if (_pendingCmd == "compile")
             {
-                var entry = new JsonObject
+                _refreshNeeded = false;
+                var errors   = new JsonArray();
+                var warnings = new JsonArray();
+                foreach (var m in _compileMessages)
                 {
-                    ["text"]   = m.message,
-                    ["file"]   = m.file,
-                    ["line"]   = m.line,
-                    ["column"] = m.column,
-                };
-                (m.type == CompilerMessageType.Error ? errors : warnings).Add(entry);
+                    var entry = new JsonObject
+                    {
+                        ["text"]   = m.message,
+                        ["file"]   = m.file,
+                        ["line"]   = m.line,
+                        ["column"] = m.column,
+                    };
+                    (m.type == CompilerMessageType.Error ? errors : warnings).Add(entry);
+                }
+                _compileMessages.Clear();
+                Notify("compile_finished", new JsonObject { ["error_count"] = _compileErrorCount });
+                var resp = MakeResponse(_pendingUid, "compile", errors.Count > 0 ? "error" : "ok");
+                resp["errors"]   = errors;
+                resp["warnings"] = warnings;
+                Respond(resp);
             }
-            _compileMessages.Clear();
-
-            var resp = MakeResponse(_pendingUid, "compile", errors.Count > 0 ? "error" : "ok");
-            resp["errors"]   = errors;
-            resp["warnings"] = warnings;
-            Respond(resp);
+            else if (_state == State.AwaitCompile)
+            {
+                _state = State.Idle;
+                if (_compileErrorCount > 0)
+                {
+                    var errors = new JsonArray();
+                    foreach (var m in _compileMessages)
+                        if (m.type == CompilerMessageType.Error)
+                            errors.Add(new JsonObject
+                            {
+                                ["text"]   = m.message,
+                                ["file"]   = m.file,
+                                ["line"]   = m.line,
+                                ["column"] = m.column,
+                            });
+                    Notify("compile_failure", new JsonObject { ["errors"] = errors });
+                }
+                _compileMessages.Clear();
+                Notify("compile_finished", new JsonObject { ["error_count"] = _compileErrorCount });
+            }
         }
 
         private static void OnUpdate()
@@ -239,10 +312,31 @@ namespace LLMDevTools
             if (_state == State.Idle)
                 ReadNext();
 
+            if (_scriptsDirty && !EditorApplication.isCompiling && _state == State.Idle
+                && (now - _lastScriptWrite) >= AutoCompileDelay)
+            {
+                _state        = State.AwaitCompile;
+                _scriptsDirty = false;
+                _compileMessages.Clear();
+                AssetDatabase.Refresh();
+                CompilationPipeline.RequestScriptCompilation();
+            }
+
+            if (_state == State.AwaitRefresh && !EditorApplication.isUpdating)
+            {
+                _refreshNeeded = false;
+                _state         = State.Idle;
+                Notify("refresh_finished", new JsonObject());
+            }
+
             if (_state == State.Busy && _pendingCmd == "refresh")
             {
                 if (!EditorApplication.isUpdating)
+                {
+                    _refreshNeeded = false;
+                    Notify("refresh_finished", new JsonObject());
                     Respond(MakeResponse(_pendingUid, "refresh", "ok"));
+                }
             }
 
             if (now >= _nextHeartbeat)
@@ -266,7 +360,7 @@ namespace LLMDevTools
                 if (string.IsNullOrEmpty(line)) { SafeDelete(file); return; }
                 var req = JsonUtility.FromJson<Request>(line);
                 if (!string.IsNullOrEmpty(req?.uid) && !string.IsNullOrEmpty(req?.cmd))
-                    Dispatch(req.uid, req.cmd, line, file);
+                    Dispatch(req.uid, req.cmd, req.agent_id, line, file);
                 else
                     SafeDelete(file);
             }
@@ -275,21 +369,31 @@ namespace LLMDevTools
 
         // ── Dispatch ──────────────────────────────────────────────────────────
 
-        private static void Dispatch(string uid, string cmd, string json, string file)
+        private static void Dispatch(string uid, string cmd, string agentId, string json, string file)
         {
             _state              = State.Busy;
             _pendingUid         = uid;
             _pendingCmd         = cmd;
             _pendingFile        = file;
             _pendingRequestJson = json;
+            _pendingAgentId     = agentId;
 
-            var blocked = CheckBlocked(cmd);
-            if (blocked != null)
+            if (_scriptsDirty && !_noCompileBlockCmds.Contains(cmd))
             {
-                var r = MakeResponse(uid, cmd, "error");
-                r["message"] = blocked;
-                Respond(r);
-                return;
+                _state       = State.AwaitCompile;
+                _scriptsDirty = false;
+                _compileMessages.Clear();
+                AssetDatabase.Refresh();
+                CompilationPipeline.RequestScriptCompilation();
+                return; // request file stays on disk; ReadNext replays after compile
+            }
+            if (_refreshNeeded && !_noRefreshBlockCmds.Contains(cmd))
+            {
+                _state        = State.AwaitRefresh;
+                _refreshNeeded = false;
+                Notify("refresh_started", new JsonObject());
+                AssetDatabase.Refresh();
+                return; // request file stays on disk; ReadNext replays after refresh
             }
 
             if (_handlers.TryGetValue(cmd, out var handler))
@@ -332,6 +436,7 @@ namespace LLMDevTools
             _pendingCmd         = null;
             _pendingFile        = null;
             _pendingRequestJson = null;
+            _pendingAgentId     = null;
             _state              = State.Idle;
             WriteSession();
         }
@@ -385,27 +490,34 @@ namespace LLMDevTools
                 {
                     ["pid"]            = System.Diagnostics.Process.GetCurrentProcess().Id,
                     ["session_id"]     = _sessionId,
-                    ["state"]          = _state == State.Reloading ? "reloading" : _state == State.Busy ? "busy" : "idle",
+                    ["state"]          = _state == State.Reloading ? "reloading" : _state == State.Idle ? "idle" : "busy",
                     ["active_scene"]   = scene.name,
                     // scene_dirty: if true, scene_new/scene_open will trigger a save-dialog unless scene_save is called first
                     ["scene_dirty"]    = scene.isDirty,
                     ["play_mode"]      = EditorApplication.isPlaying,
                     ["compile_errors"]  = _compileErrorCount,
                     ["console_errors"]  = ConsoleBridge.ErrorCount,
+                    ["agent_id"]        = _pendingAgentId ?? "",
                     ["written_at"]      = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 }.ToJsonString());
             }
             catch (IOException) { }
         }
 
-        public static JsonObject MakeResponse(string uid, string cmd, string status) => new()
+        public static JsonObject MakeResponse(string uid, string cmd, string status)
         {
-            ["uid"]            = uid,
-            ["cmd"]            = cmd,
-            ["status"]         = status,
-            ["compile_errors"] = _compileErrorCount,
-            ["console_errors"] = ConsoleBridge.ErrorCount,
-        };
+            var r = new JsonObject
+            {
+                ["uid"]            = uid,
+                ["cmd"]            = cmd,
+                ["status"]         = status,
+                ["compile_errors"] = _compileErrorCount,
+                ["console_errors"] = ConsoleBridge.ErrorCount,
+            };
+            if (!string.IsNullOrEmpty(_pendingAgentId))
+                r["agent_id"] = _pendingAgentId;
+            return r;
+        }
 
 #if UNITY_EDITOR_WIN
         [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -422,7 +534,7 @@ namespace LLMDevTools
 #endif
         }
 
-        [Serializable] private class Request { public string uid; public string cmd; }
+        [Serializable] private class Request { public string uid; public string cmd; public string agent_id; }
 
         // ── Asset watcher ─────────────────────────────────────────────────────
 
@@ -451,7 +563,10 @@ namespace LLMDevTools
             if (name.EndsWith(".meta", StringComparison.OrdinalIgnoreCase)) return;
             _refreshNeeded = true;
             if (IsScriptAsset(Path.GetExtension(name).ToLowerInvariant()))
-                _scriptsDirty = true;
+            {
+                _scriptsDirty    = true;
+                _lastScriptWrite = EditorApplication.timeSinceStartup;
+            }
         }
 
         internal static bool IsScriptAsset(string ext) =>
@@ -507,7 +622,7 @@ namespace LLMDevTools
         private sealed class CompileCmd : IAgentCommand
         {
             public string Cmd         => "compile";
-            public string Description => "Trigger script compilation; returns errors and warnings.";
+            public string Description => "Trigger script compilation; returns errors and warnings. Fires compile_started then compile_finished or compile_failure notifications.";
             public JsonObject Execute(string uid, string requestJson)
             {
                 _compileMessages.Clear();
@@ -522,10 +637,11 @@ namespace LLMDevTools
         private sealed class RefreshCmd : IAgentCommand
         {
             public string Cmd         => "refresh";
-            public string Description => "";
+            public string Description => "Trigger AssetDatabase.Refresh() and wait for completion. Fires refresh_started and refresh_finished notifications.";
             public JsonObject Execute(string uid, string requestJson)
             {
                 FocusUnityWindow();
+                Notify("refresh_started", new JsonObject());
                 AssetDatabase.Refresh();
                 return null; // async — OnUpdate responds
             }

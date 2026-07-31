@@ -2,8 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+- `screenshot` now uses `ScreenCapture.CaptureScreenshotAsTexture()` via a post-render callback instead of a manual camera render. The command returns immediately and fires a `screenshot_ready` notification with `path`, `width`, and `height` when the image is saved. The `width` and `height` arguments are removed; the capture size matches the active view. `max_size` still applies.
+- Notification system: AgentBridge writes `Temp/agent/notifications/<ts>-<uid>.json` files for lifecycle events. In `serve` mode, `dffrnt-agent` polls this directory every 500 ms and forwards each event to MCP clients as a `notifications/message`. Events: `compile_started`, `compile_finished` (includes `error_count`), `compile_failure` (includes error details), `refresh_started`, `refresh_finished`, `play_mode_entered`, `play_mode_exited`, `scene_opened` (includes `name`, `path`, `mode`), `screenshot_ready` (includes `path`, `width`, `height`).
+- Unity project auto-discovery: `dffrnt-agent` checks the current working directory and all immediate subdirectories for a Unity project (presence of `Assets/` and `ProjectSettings/`). Directories without a `~` suffix take priority. No `--project` flag needed when running from the project root or a parent folder.
+- Tools list refresh: after `set_project` loads commands from Unity, the server sends a `notifications/tools/list_changed` event so MCP clients pick up the new tools without a reconnect.
+- `agent_id` field: requests and responses include an optional `agent_id` string. Pass `--agent-id <id>` to `dffrnt-agent` to tag all commands from one agent instance. The session heartbeat also includes the current `agent_id` so multiple agents can see which agent holds the bridge.
+- Auto-compile timer: when a script file change is detected and no manual `compile` command arrives within 10 seconds, AgentBridge triggers compilation automatically. This prevents stale compile state when the user switches back to the Editor after an agent writes scripts.
+
 ### Changed
-- Commands now return a hard error when scripts need recompilation or assets need reimport, instead of appending a `_warning` field. The error message tells the caller to run `compile` or `refresh` first. Exempt commands are always allowed: `status`, `list_commands`, `console_logs`, `profiler_*`, `compile`, `refresh`, `execute_script`, `run_editor_tests`, `run_playmode_tests`, `asset_write_text`, `asset_create`, `asset_delete`, `asset_move`, `asset_copy`, and `asset_set`.
+- When scripts need recompilation or assets need reimport, AgentBridge now triggers `compile` or `refresh` automatically and replays the blocked command after completion. Previously a hard error was returned. Commands that are always safe to run (log checks, script execution, asset writes) are not affected.
 
 ## [0.3.0] - 2026-07-28
 

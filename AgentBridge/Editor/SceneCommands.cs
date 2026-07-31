@@ -27,7 +27,7 @@ namespace LLMDevTools
     internal sealed class SceneOpenCmd : IAgentCommand
     {
         public string    Cmd         => "scene_open";
-        public string    Description => "Open a scene by asset path.";
+        public string    Description => "Open a scene by asset path. Fires a scene_opened notification when the scene loads.";
         public ArgSpec[] Args        => new[]
         {
             new ArgSpec("path", "string", "",       ""),

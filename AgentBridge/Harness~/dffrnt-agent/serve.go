@@ -85,7 +85,11 @@ var staticCmds = []any{
 
 func runServe(cfg Config) {
 	state := &serveState{cfg: cfg, rawCmds: staticCmds}
-	s := server.NewMCPServer("unity-agentbridge", "0.1.0")
+	s := server.NewMCPServer("unity-agentbridge", "0.1.0", server.WithToolCapabilities(true))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startNotificationWatcher(ctx, state, s)
 
 	registerProjectTools(cfg, s)
 
@@ -105,6 +109,7 @@ func runServe(cfg Config) {
 			result["warning"] = "Unity commands not loaded: " + err.Error()
 		} else {
 			result["commands_loaded"] = len(state.getRawCmds()) - len(staticCmds)
+			s.SendNotificationToAllClients(string(mcp.MethodNotificationToolsListChanged), nil)
 		}
 		out, _ := json.MarshalIndent(result, "", "  ")
 		return mcp.NewToolResultText(string(out)), nil

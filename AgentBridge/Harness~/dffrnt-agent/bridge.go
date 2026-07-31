@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -16,13 +17,15 @@ type Config struct {
 	Project   string
 	Timeout   float64
 	UnityPath string
+	AgentID   string
 }
 
-func (c Config) tempDir() string     { return filepath.Join(c.Project, "Temp") }
-func (c Config) agentDir() string    { return filepath.Join(c.tempDir(), "agent") }
-func (c Config) requestsDir() string { return filepath.Join(c.agentDir(), "requests") }
-func (c Config) responsesDir() string { return filepath.Join(c.agentDir(), "responses") }
-func (c Config) sessionPath() string { return filepath.Join(c.agentDir(), "session.json") }
+func (c Config) tempDir() string          { return filepath.Join(c.Project, "Temp") }
+func (c Config) agentDir() string         { return filepath.Join(c.tempDir(), "agent") }
+func (c Config) requestsDir() string      { return filepath.Join(c.agentDir(), "requests") }
+func (c Config) responsesDir() string     { return filepath.Join(c.agentDir(), "responses") }
+func (c Config) notificationsDir() string { return filepath.Join(c.agentDir(), "notifications") }
+func (c Config) sessionPath() string      { return filepath.Join(c.agentDir(), "session.json") }
 
 // waitForReady blocks until Unity's session state is no longer "reloading".
 // Returns an error if the deadline is exceeded or Unity disappears.
@@ -60,6 +63,9 @@ func send(cfg Config, cmd string, args map[string]any) (map[string]any, error) {
 
 	uid := newUID()
 	payload := map[string]any{"uid": uid, "cmd": cmd}
+	if cfg.AgentID != "" {
+		payload["agent_id"] = cfg.AgentID
+	}
 	for k, v := range args {
 		payload[k] = v
 	}
@@ -125,11 +131,12 @@ func readResponse(respPath string) (map[string]any, bool, error) {
 	if err != nil {
 		return nil, false, nil
 	}
-	os.Remove(respPath)
 	var resp map[string]any
 	if json.Unmarshal(data, &resp) != nil {
-		return nil, true, fmt.Errorf("invalid response JSON")
+		// File may be partially written; retry on next poll.
+		return nil, false, nil
 	}
+	os.Remove(respPath)
 	return resp, true, nil
 }
 
@@ -155,6 +162,51 @@ func checkSession(path string) error {
 		}
 	}
 	return nil
+}
+
+// findUnityProject checks CWD and all immediate subdirectories for a Unity
+// project (presence of Assets/ and ProjectSettings/). Directories without a
+// "~" suffix are preferred over those with one.
+func findUnityProject() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	if isUnityProject(cwd) {
+		return cwd
+	}
+	entries, err := os.ReadDir(cwd)
+	if err != nil {
+		return ""
+	}
+	var tildeMatch string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		path := filepath.Join(cwd, e.Name())
+		if !isUnityProject(path) {
+			continue
+		}
+		if strings.HasSuffix(e.Name(), "~") {
+			if tildeMatch == "" {
+				tildeMatch = path
+			}
+		} else {
+			return path
+		}
+	}
+	return tildeMatch
+}
+
+func isUnityProject(path string) bool {
+	for _, sub := range []string{"Assets", "ProjectSettings"} {
+		info, err := os.Stat(filepath.Join(path, sub))
+		if err != nil || !info.IsDir() {
+			return false
+		}
+	}
+	return true
 }
 
 func newUID() string {

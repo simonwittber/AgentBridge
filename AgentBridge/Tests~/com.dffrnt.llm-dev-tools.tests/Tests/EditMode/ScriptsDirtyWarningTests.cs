@@ -13,20 +13,20 @@ namespace LLMDevTools.Tests
         }
 
         [Test]
-        public void NotBlocked_WhenClean()
+        public void NoAutoFix_WhenClean()
         {
             Assert.That(AgentBridge.CheckBlocked("hierarchy"), Is.Null);
         }
 
         [Test]
-        public void Blocked_WhenScriptsDirty()
+        public void NeedsAutoCompile_WhenScriptsDirty()
         {
             AgentBridge.MarkScriptsDirty();
             Assert.That(AgentBridge.CheckBlocked("hierarchy"), Is.Not.Null.And.Not.Empty);
         }
 
         [Test]
-        public void NotBlocked_AfterClear()
+        public void NoAutoFix_AfterScriptsDirtyCleared()
         {
             AgentBridge.MarkScriptsDirty();
             AgentBridge.ClearScriptsDirty();
@@ -43,10 +43,10 @@ namespace LLMDevTools.Tests
         [TestCase("asset_write_text")]
         [TestCase("asset_create")]
         [TestCase("asset_delete")]
-        public void NotBlocked_WhenScriptsDirty_ForExemptCommands(string cmd)
+        public void NoAutoFix_WhenScriptsDirty_ForExemptCommands(string cmd)
         {
             AgentBridge.MarkScriptsDirty();
-            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Null, $"'{cmd}' should be exempt from compile block");
+            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Null, $"'{cmd}' should be exempt from auto-compile");
         }
 
         [TestCase("compile")]
@@ -55,29 +55,29 @@ namespace LLMDevTools.Tests
         [TestCase("list_commands")]
         [TestCase("asset_write_text")]
         [TestCase("asset_create")]
-        public void NotBlocked_WhenRefreshNeeded_ForExemptCommands(string cmd)
+        public void NoAutoFix_WhenRefreshNeeded_ForExemptCommands(string cmd)
         {
             AgentBridge.MarkRefreshNeeded();
-            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Null, $"'{cmd}' should be exempt from refresh block");
+            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Null, $"'{cmd}' should be exempt from auto-refresh");
         }
 
         [TestCase("object_create")]
         [TestCase("component_get")]
         [TestCase("hierarchy")]
         [TestCase("scene_info")]
-        public void Blocked_WhenScriptsDirty_ForNonExemptCommands(string cmd)
+        public void NeedsAutoCompile_WhenScriptsDirty_ForNonExemptCommands(string cmd)
         {
             AgentBridge.MarkScriptsDirty();
-            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Not.Null.And.Not.Empty, $"'{cmd}' should be blocked when scripts are dirty");
+            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Not.Null.And.Not.Empty, $"'{cmd}' should trigger auto-compile when scripts are dirty");
         }
 
         [TestCase("object_create")]
         [TestCase("hierarchy")]
         [TestCase("scene_info")]
-        public void Blocked_WhenRefreshNeeded_ForNonExemptCommands(string cmd)
+        public void NeedsAutoRefresh_WhenRefreshNeeded_ForNonExemptCommands(string cmd)
         {
             AgentBridge.MarkRefreshNeeded();
-            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Not.Null.And.Not.Empty, $"'{cmd}' should be blocked when refresh is needed");
+            Assert.That(AgentBridge.CheckBlocked(cmd), Is.Not.Null.And.Not.Empty, $"'{cmd}' should trigger auto-refresh when assets are dirty");
         }
     }
 }

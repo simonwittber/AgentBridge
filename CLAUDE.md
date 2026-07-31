@@ -53,3 +53,11 @@ There is no automated compile trigger — Unity auto-compiles on focus or file c
 - `Temp/agent_output` — newline-delimited JSON written by Unity
 - `Temp/agent_session` — JSON heartbeat written by Unity every 5 s: `pid`, `state`, `active_scene`, `play_mode`, `compile_errors`, `written_at`
 - Output rotates at 2 MB; input is truncated on Unity startup
+
+## Notifications
+
+AgentBridge sends `notifications/message` events when Unity state changes.
+In `serve` mode, `dffrnt-agent` forwards these automatically to connected MCP clients.
+
+Commands that trigger async transitions (compilation, play mode, scene load) note their notifications in the tool description.
+Do not poll `status` after these commands. Wait for the corresponding notification instead.

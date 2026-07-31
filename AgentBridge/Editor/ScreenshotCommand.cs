@@ -1,3 +1,4 @@
+using System.Collections;
 using System.IO;
 using System.Text.Json.Nodes;
 using UnityEditor;
@@ -8,96 +9,187 @@ namespace LLMDevTools
     internal sealed class ScreenshotCmd : IAgentCommand
     {
         public string    Cmd         => "screenshot";
-        public string    Description => "Render the scene view (or main camera) to a PNG. Returns the file path — read the file to view the image.";
+        public string    Description => "Capture the current view to a PNG. Returns immediately and fires a screenshot_ready notification with the file path when done.";
         public ArgSpec[] Args        => new[]
         {
-            new ArgSpec("path",     "string", "", "Defaults to Temp/agent/screenshot.png"),
-            new ArgSpec("width",    "int",    "0", "0 = scene view or 1920"),
-            new ArgSpec("height",   "int",    "0", "0 = scene view or 1080"),
-            new ArgSpec("max_size", "int",    "0", "Downscale so longest edge is at most this many pixels"),
+            new ArgSpec("path",     "string", "", "Output path. Defaults to Temp/agent/screenshot.png"),
+            new ArgSpec("max_size", "int",    "0", "Downscale so the longest edge is at most this many pixels"),
         };
+
+        private string _pendingPath;
+        private int    _pendingMaxSize;
+        private bool   _busy;
 
         public JsonObject Execute(string uid, string requestJson)
         {
             var p = JsonUtility.FromJson<Params>(requestJson);
 
-            Camera cam = Application.isPlaying ? Camera.main : null;
-            var sv = SceneView.lastActiveSceneView;
-            if (cam == null) cam = sv?.camera;
-            if (cam == null) cam = Camera.main;
-            if (cam == null) cam = UnityEngine.Object.FindAnyObjectByType<Camera>();
+            if (_busy)
+            {
+                var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                err["message"] = "Screenshot capture already in progress";
+                return err;
+            }
+
+            _pendingPath    = string.IsNullOrEmpty(p.path) ? "Temp/agent/screenshot.png" : p.path;
+            _pendingMaxSize = p.max_size;
+
+            if (!PathUtils.IsWritable(_pendingPath))
+            {
+                var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                err["message"] = $"Path '{_pendingPath}' is outside allowed write locations (Assets/ or Temp/)";
+                return err;
+            }
+
+            if (Application.isPlaying)
+            {
+                _busy = true;
+                var go = new GameObject("__AgentScreenshot");
+                Object.DontDestroyOnLoad(go);
+                var helper = go.AddComponent<CaptureHelper>();
+                helper.PendingPath    = _pendingPath;
+                helper.PendingMaxSize = _pendingMaxSize;
+                helper.OnComplete     = () => _busy = false;
+            }
+            else
+            {
+                CaptureEditMode(_pendingPath, _pendingMaxSize);
+            }
+
+            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+            return resp;
+        }
+
+        // Edit mode: no player loop, so render the scene view camera synchronously.
+        private static void CaptureEditMode(string outPath, int maxSize)
+        {
+            Camera cam = null;
+            if (SceneView.lastActiveSceneView != null)
+                cam = SceneView.lastActiveSceneView.camera;
+            if (cam == null)
+                cam = Object.FindAnyObjectByType<Camera>();
+
             if (cam == null)
             {
-                var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                err["message"] = "No camera available";
-                return err;
+                AgentBridge.Notify("screenshot_ready", new JsonObject { ["error"] = "No camera found in scene" });
+                return;
             }
 
-            int w = p.width  > 0 ? p.width  : (sv != null ? (int)sv.position.width  : 1920);
-            int h = p.height > 0 ? p.height : (sv != null ? (int)sv.position.height : 1080);
-            if (w <= 0) w = 1920;
-            if (h <= 0) h = 1080;
+            int w = Mathf.Max(1, cam.pixelWidth);
+            int h = Mathf.Max(1, cam.pixelHeight);
 
-            string savePath = string.IsNullOrEmpty(p.path) ? "Temp/agent/screenshot.png" : p.path;
-            if (!PathUtils.IsWritable(savePath))
+            if (maxSize > 0 && (w > maxSize || h > maxSize))
             {
-                var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                err["message"] = $"Path '{savePath}' is outside allowed write locations (Assets/ or Temp/)";
-                return err;
+                float scale = (float)maxSize / Mathf.Max(w, h);
+                w = Mathf.Max(1, Mathf.RoundToInt(w * scale));
+                h = Mathf.Max(1, Mathf.RoundToInt(h * scale));
             }
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(savePath)));
 
-            var rt         = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32);
-            var prevTarget = cam.targetTexture;
+            var rt      = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32);
+            var prevTgt = cam.targetTexture;
             cam.targetTexture = rt;
             cam.Render();
-            cam.targetTexture = prevTarget;
+            cam.targetTexture = prevTgt;
 
             RenderTexture.active = rt;
             var tex = new Texture2D(w, h, TextureFormat.RGB24, false);
             tex.ReadPixels(new Rect(0, 0, w, h), 0, 0);
             tex.Apply();
             RenderTexture.active = null;
-            UnityEngine.Object.DestroyImmediate(rt);
+            Object.DestroyImmediate(rt);
 
-            if (p.max_size > 0 && (w > p.max_size || h > p.max_size))
-            {
-                float scale  = (float)p.max_size / Mathf.Max(w, h);
-                int   newW   = Mathf.RoundToInt(w * scale);
-                int   newH   = Mathf.RoundToInt(h * scale);
-                var   srt    = new RenderTexture(newW, newH, 0, RenderTextureFormat.ARGB32);
-                Graphics.Blit(tex, srt);
-                RenderTexture.active = srt;
-                var scaledTex = new Texture2D(newW, newH, TextureFormat.RGB24, false);
-                scaledTex.ReadPixels(new Rect(0, 0, newW, newH), 0, 0);
-                scaledTex.Apply();
-                RenderTexture.active = null;
-                UnityEngine.Object.DestroyImmediate(srt);
-                UnityEngine.Object.DestroyImmediate(tex);
-                tex = scaledTex;
-                w   = newW;
-                h   = newH;
-            }
-
+            var fullPath = Path.GetFullPath(outPath);
             try
             {
-                File.WriteAllBytes(savePath, tex.EncodeToPNG());
+                Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+                File.WriteAllBytes(fullPath, tex.EncodeToPNG());
             }
-            finally { UnityEngine.Object.DestroyImmediate(tex); }
+            finally
+            {
+                Object.DestroyImmediate(tex);
+            }
 
-            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-            resp["path"]   = Path.GetFullPath(savePath);
-            resp["width"]  = w;
-            resp["height"] = h;
-            return resp;
+            AgentBridge.Notify("screenshot_ready", new JsonObject
+            {
+                ["path"]   = fullPath,
+                ["width"]  = w,
+                ["height"] = h,
+            });
+        }
+
+        // Play mode: coroutine waits for end of frame then uses ScreenCapture API.
+        private class CaptureHelper : MonoBehaviour
+        {
+            public string         PendingPath;
+            public int            PendingMaxSize;
+            public System.Action  OnComplete;
+
+            private IEnumerator Start()
+            {
+                yield return new WaitForEndOfFrame();
+
+                var tex = ScreenCapture.CaptureScreenshotAsTexture();
+                if (tex == null)
+                {
+                    AgentBridge.Notify("screenshot_ready", new JsonObject { ["error"] = "CaptureScreenshotAsTexture returned null" });
+                    Done();
+                    yield break;
+                }
+
+                int w = tex.width;
+                int h = tex.height;
+
+                if (PendingMaxSize > 0 && (w > PendingMaxSize || h > PendingMaxSize))
+                {
+                    float scale     = (float)PendingMaxSize / Mathf.Max(w, h);
+                    int   newW      = Mathf.Max(1, Mathf.RoundToInt(w * scale));
+                    int   newH      = Mathf.Max(1, Mathf.RoundToInt(h * scale));
+                    var   srt       = new RenderTexture(newW, newH, 0, RenderTextureFormat.ARGB32);
+                    Graphics.Blit(tex, srt);
+                    RenderTexture.active = srt;
+                    var scaled = new Texture2D(newW, newH, TextureFormat.RGB24, false);
+                    scaled.ReadPixels(new Rect(0, 0, newW, newH), 0, 0);
+                    scaled.Apply();
+                    RenderTexture.active = null;
+                    Destroy(srt);
+                    Destroy(tex);
+                    tex = scaled;
+                    w   = newW;
+                    h   = newH;
+                }
+
+                var fullPath = Path.GetFullPath(PendingPath);
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+                    File.WriteAllBytes(fullPath, tex.EncodeToPNG());
+                }
+                finally
+                {
+                    Destroy(tex);
+                }
+
+                AgentBridge.Notify("screenshot_ready", new JsonObject
+                {
+                    ["path"]   = fullPath,
+                    ["width"]  = w,
+                    ["height"] = h,
+                });
+
+                Done();
+            }
+
+            private void Done()
+            {
+                OnComplete?.Invoke();
+                Destroy(gameObject);
+            }
         }
 
         [System.Serializable]
         private class Params
         {
             public string path     = "";
-            public int    width    = 0;
-            public int    height   = 0;
             public int    max_size = 0;
         }
     }
