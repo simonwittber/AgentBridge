@@ -172,11 +172,10 @@ Expected output:
 
 | Command | Description |
 |---|---|
-| `profiler_start` | Begin recording named `ProfilerMarker` samples |
+| `profiler_start` | Begin recording named `ProfilerMarker` samples. Works in edit mode and play mode. Use `execute_script` to fire custom markers, then call `profiler_get_samples`. |
 | `profiler_stop` | Stop the current recording session |
 | `profiler_clear` | Stop and dispose all recorders |
-| `profiler_get_samples` | Return summary stats for recorded markers |
-| `profiler_benchmark` | Fire a named marker with real CPU work to produce measurable samples |
+| `profiler_get_samples` | Return summary stats (and optionally raw values) for recorded markers |
 
 ### Player settings and editor prefs
 

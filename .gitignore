@@ -32,5 +32,9 @@ sysinfo.txt
 AgentBridge/Harness~/dffrnt-agent/dffrnt-agent
 AgentBridge/Harness~/dffrnt-agent/dffrnt-agent.exe
 
+# Editor backup and undo files (Vim, Emacs)
+*~
+*.un~
+
 # Claude Code
 .claude/
