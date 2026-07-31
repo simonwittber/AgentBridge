@@ -45,7 +45,7 @@ namespace LLMDevTools
             }
             var mode = p.mode == "Additive" ? OpenSceneMode.Additive : OpenSceneMode.Single;
             if (mode == OpenSceneMode.Single)
-                SceneBridge.SilentlyClearDirtyScenes();
+                SceneBridge.SaveDirtyScenesWithoutPrompt();
             try
             {
                 var scene = EditorSceneManager.OpenScene(p.path, mode);
@@ -114,7 +114,7 @@ namespace LLMDevTools
         {
             var p     = JsonUtility.FromJson<Params>(requestJson);
             var setup = p.setup == "defaultGameObjects" ? NewSceneSetup.DefaultGameObjects : NewSceneSetup.EmptyScene;
-            SceneBridge.SilentlyClearDirtyScenes();
+            SceneBridge.SaveDirtyScenesWithoutPrompt();
             EditorSceneManager.NewScene(setup, NewSceneMode.Single);
             return AgentBridge.MakeResponse(uid, Cmd, "ok");
         }

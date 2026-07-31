@@ -64,12 +64,25 @@ namespace LLMDevTools
             endMethod.Invoke(null, null);
         }
 
+        // Bitmask values from Unity's internal ConsoleWindow.Mode enum (accessed via reflection).
+        private const int ModeError          = 1;
+        private const int ModeFatal          = 16;
+        private const int ModeScriptingError = 256;
+        private const int ModeCompileError   = 2048;
+        private const int ModeStickyError    = 8192;
+        private const int ModeImportWarning  = 128;
+        private const int ModeScriptWarning  = 512;
+        private const int ModeCompileWarning = 4096;
+        private const int ModeDontShowAgain  = 131072; // Unity sets this on dismissed errors; treated as error here.
+        private const int ModeAssert         = 2;
+        private const int ModeAssertMessage  = 2097152;
+
         private static string ModeToType(int mode)
         {
-            if ((mode & (1 | 16 | 256 | 2048 | 8192)) != 0) return "error";
-            if ((mode & (128 | 512 | 4096))            != 0) return "warning";
-            if ((mode & 131072)                        != 0) return "error";
-            if ((mode & (2 | 2097152))                 != 0) return "assert";
+            if ((mode & (ModeError | ModeFatal | ModeScriptingError | ModeCompileError | ModeStickyError)) != 0) return "error";
+            if ((mode & (ModeImportWarning | ModeScriptWarning | ModeCompileWarning))                      != 0) return "warning";
+            if ((mode & ModeDontShowAgain)                                                                  != 0) return "error";
+            if ((mode & (ModeAssert | ModeAssertMessage))                                                   != 0) return "assert";
             return "log";
         }
 

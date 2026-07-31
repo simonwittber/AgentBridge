@@ -34,7 +34,7 @@ namespace LLMDevTools
             _pendingPath    = string.IsNullOrEmpty(p.path) ? "Temp/agent/screenshot.png" : p.path;
             _pendingMaxSize = p.max_size;
 
-            if (!PathUtils.IsWritable(_pendingPath))
+            if (!PathUtils.IsAllowedWritePath(_pendingPath))
             {
                 var err = AgentBridge.MakeResponse(uid, Cmd, "error");
                 err["message"] = $"Path '{_pendingPath}' is outside allowed write locations (Assets/ or Temp/)";

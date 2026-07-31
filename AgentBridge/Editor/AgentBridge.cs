@@ -54,7 +54,6 @@ namespace LLMDevTools
         private static string _pendingAgentId;
         private static double _nextPoll;
         private static double _nextHeartbeat;
-        private static bool   _wasPlayingBeforeReload;
 
         private static readonly List<CompilerMessage>              _compileMessages = new();
         private static readonly Dictionary<string, IAgentCommand> _handlers        = new();
@@ -189,12 +188,7 @@ namespace LLMDevTools
         {
             if (change == PlayModeStateChange.EnteredPlayMode)
             {
-                _wasPlayingBeforeReload = true;
                 Notify("play_mode_entered", new JsonObject());
-            }
-            else if (change == PlayModeStateChange.ExitingPlayMode)
-            {
-                _wasPlayingBeforeReload = false;
             }
             else if (change == PlayModeStateChange.EnteredEditMode)
             {
@@ -230,8 +224,6 @@ namespace LLMDevTools
                 ["_ts"]         = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 ["pending_cmd"] = _pendingCmd ?? "",
             };
-            if (_wasPlayingBeforeReload)
-                reloadLog["note"] = "Play mode was active and has been exited by this reload. Re-enter play mode after the domain_reload_complete marker.";
             AppendLog(reloadLog);
             WriteSession();
             // Request file stays on disk — replayed automatically after reload.
@@ -462,7 +454,7 @@ namespace LLMDevTools
         private static void AppendLog(JsonObject entry)
         {
             try { File.AppendAllText(LogPath, entry.ToJsonString() + "\n"); }
-            catch { }
+            catch (Exception ex) { Debug.LogWarning($"[AgentBridge] Failed to write log: {ex.Message}"); }
         }
 
         private static void SafeDelete(string path)

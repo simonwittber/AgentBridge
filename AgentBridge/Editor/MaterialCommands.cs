@@ -98,19 +98,19 @@ namespace LLMDevTools
                 {
                     case UnityEngine.Rendering.ShaderPropertyType.Float:
                     case UnityEngine.Rendering.ShaderPropertyType.Range:
-                        mat.SetFloat(property, SceneBridge.F(value)); break;
+                        mat.SetFloat(property, SceneBridge.ToFloat(value)); break;
 
                     case UnityEngine.Rendering.ShaderPropertyType.Color:
                     {
                         var o = value.AsObject();
-                        mat.SetColor(property, new Color(SceneBridge.F(o["r"]), SceneBridge.F(o["g"]), SceneBridge.F(o["b"]), o["a"] != null ? SceneBridge.F(o["a"]) : 1f));
+                        mat.SetColor(property, new Color(SceneBridge.ToFloat(o["r"]), SceneBridge.ToFloat(o["g"]), SceneBridge.ToFloat(o["b"]), o["a"] != null ? SceneBridge.ToFloat(o["a"]) : 1f));
                         break;
                     }
 
                     case UnityEngine.Rendering.ShaderPropertyType.Vector:
                     {
                         var o = value.AsObject();
-                        mat.SetVector(property, new Vector4(SceneBridge.F(o["x"]), SceneBridge.F(o["y"]), SceneBridge.F(o["z"]), o["w"] != null ? SceneBridge.F(o["w"]) : 0f));
+                        mat.SetVector(property, new Vector4(SceneBridge.ToFloat(o["x"]), SceneBridge.ToFloat(o["y"]), SceneBridge.ToFloat(o["z"]), o["w"] != null ? SceneBridge.ToFloat(o["w"]) : 0f));
                         break;
                     }
 

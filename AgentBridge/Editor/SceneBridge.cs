@@ -104,7 +104,7 @@ namespace LLMDevTools
                 EditorSceneManager.MarkSceneDirty(go.scene);
         }
 
-        internal static void SilentlyClearDirtyScenes()
+        internal static void SaveDirtyScenesWithoutPrompt()
         {
             for (int i = 0; i < SceneManager.sceneCount; i++)
             {
@@ -263,21 +263,21 @@ namespace LLMDevTools
                     case SerializedPropertyType.Color:
                     {
                         var o = value.AsObject();
-                        sp.colorValue = new Color(F(o["r"]), F(o["g"]), F(o["b"]), o["a"] != null ? F(o["a"]) : 1f);
+                        sp.colorValue = new Color(ToFloat(o["r"]), ToFloat(o["g"]), ToFloat(o["b"]), o["a"] != null ? ToFloat(o["a"]) : 1f);
                         return true;
                     }
 
                     case SerializedPropertyType.Vector2:
-                    { var o = value.AsObject(); sp.vector2Value = new Vector2(F(o["x"]), F(o["y"])); return true; }
+                    { var o = value.AsObject(); sp.vector2Value = new Vector2(ToFloat(o["x"]), ToFloat(o["y"])); return true; }
 
                     case SerializedPropertyType.Vector3:
-                    { var o = value.AsObject(); sp.vector3Value = new Vector3(F(o["x"]), F(o["y"]), F(o["z"])); return true; }
+                    { var o = value.AsObject(); sp.vector3Value = new Vector3(ToFloat(o["x"]), ToFloat(o["y"]), ToFloat(o["z"])); return true; }
 
                     case SerializedPropertyType.Vector4:
-                    { var o = value.AsObject(); sp.vector4Value = new Vector4(F(o["x"]), F(o["y"]), F(o["z"]), F(o["w"])); return true; }
+                    { var o = value.AsObject(); sp.vector4Value = new Vector4(ToFloat(o["x"]), ToFloat(o["y"]), ToFloat(o["z"]), ToFloat(o["w"])); return true; }
 
                     case SerializedPropertyType.Quaternion:
-                    { var o = value.AsObject(); sp.quaternionValue = new Quaternion(F(o["x"]), F(o["y"]), F(o["z"]), F(o["w"])); return true; }
+                    { var o = value.AsObject(); sp.quaternionValue = new Quaternion(ToFloat(o["x"]), ToFloat(o["y"]), ToFloat(o["z"]), ToFloat(o["w"])); return true; }
 
                     case SerializedPropertyType.Vector2Int:
                     { var o = value.AsObject(); sp.vector2IntValue = new Vector2Int(o["x"]?.GetValue<int>() ?? 0, o["y"]?.GetValue<int>() ?? 0); return true; }
@@ -363,7 +363,7 @@ namespace LLMDevTools
             }
         }
 
-        internal static float F(JsonNode n)
+        internal static float ToFloat(JsonNode n)
         {
             if (n is not JsonValue jv) return 0f;
             if (jv.TryGetValue<double>(out var d)) return (float)d;

@@ -14,6 +14,12 @@
 - `profiler_start` now works in edit mode and play mode. The play-mode-only restriction is removed.
 - `profiler_get_samples` returns a `unit` field (`"ms"` or `"bytes"`) and includes aliased `lastMs`/`avgMs`/`minMs`/`maxMs` fields for time markers.
 - When scripts need recompilation or assets need reimport, AgentBridge now triggers `compile` or `refresh` automatically and replays the blocked command after completion. Previously a hard error was returned. Commands that are always safe to run (log checks, script execution, asset writes) are not affected.
+- Renamed `SceneBridge.SilentlyClearDirtyScenes` to `SaveDirtyScenesWithoutPrompt`. The old name implied that the method discards changes, but it saves named scenes without a prompt.
+- Removed the unused `_wasPlayingBeforeReload` field from `AgentBridge`. Unity fires `ExitingPlayMode` before `OnBeforeReload`, so the field was always `false` when read.
+- Replaced magic bitmask literals in `ConsoleBridge.ModeToType` with named constants from Unity's internal `ConsoleWindow.Mode` enum.
+- Renamed `SceneBridge.F` to `ToFloat` across all callers, including `MaterialCommands`.
+- Renamed `PathUtils.IsWritable` to `IsAllowedWritePath`. The method checks whether a path is in an allowed write location, not whether the file system permits writes.
+- `AppendLog` now logs a Unity Console warning on failure instead of silently swallowing the exception.
 
 ### Removed
 - `profiler_measure`: removed. Use `execute_script` to fire a `ProfilerMarker` and `profiler_get_samples` to read the results.

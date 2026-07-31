@@ -20,6 +20,6 @@ namespace LLMDevTools
 
         internal static bool IsUnderAssets(string path)  => SafeWritePath(path, "Assets") != null;
         internal static bool IsUnderTemp(string path)    => SafeWritePath(path, "Temp")   != null;
-        internal static bool IsWritable(string path)     => IsUnderAssets(path) || IsUnderTemp(path);
+        internal static bool IsAllowedWritePath(string path) => IsUnderAssets(path) || IsUnderTemp(path);
     }
 }
