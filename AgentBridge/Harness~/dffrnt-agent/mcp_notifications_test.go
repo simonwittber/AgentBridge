@@ -9,6 +9,45 @@ import (
 	"time"
 )
 
+func TestMCP_AutoCompile_TriggeredByScriptWrite(t *testing.T) {
+	c := shared
+
+	// Drain stale notifications left by earlier tests so we only see
+	// events that fire after the script write below.
+	for {
+		select {
+		case <-c.notifCh:
+		default:
+			goto drained
+		}
+	}
+drained:
+
+	scriptPath := filepath.Join(testProject, "Assets", "AutoCompileTest.cs")
+	content := "using UnityEngine;\npublic class AutoCompileTest : MonoBehaviour { }\n"
+	if err := os.WriteFile(scriptPath, []byte(content), 0644); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	defer func() {
+		os.Remove(scriptPath)
+		c.callTool(t, "compile", map[string]any{})
+	}()
+
+	// The auto-compile timer fires 10s after the last script write with no explicit compile call.
+	// Allow 20s: 10s delay + processing overhead.
+	c.waitTypedNotification(t, "compile_started", 20*time.Second)
+
+	n := c.waitTypedNotification(t, "compile_finished", 60*time.Second)
+	params, _ := n["params"].(map[string]any)
+	outer, _ := params["data"].(map[string]any)
+	inner, _ := outer["data"].(map[string]any)
+	if inner != nil {
+		if count, ok := inner["error_count"].(float64); ok && count > 0 {
+			t.Errorf("auto-compile produced %v error(s)", count)
+		}
+	}
+}
+
 func TestMCP_Notification_PlayMode(t *testing.T) {
 	c := shared
 

@@ -1,21 +1,13 @@
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Unity.Profiling;
-using UnityEditor;
+using UnityEngine;
 
 namespace LLMDevTools
 {
-    [InitializeOnLoad]
     internal static class ProfilerCommands
     {
-        const string SessionKey = "AgentBridge.ProfilerMarkers";
-
         static readonly Dictionary<string, ProfilerRecorder> s_recorders = new();
-
-        static ProfilerCommands()
-        {
-            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
-        }
 
         // Parses "Category/MarkerName" → (category, markerName). Defaults to Scripts.
         static (ProfilerCategory category, string markerName) ParseMarker(string entry)
@@ -39,44 +31,10 @@ namespace LLMDevTools
             return (category, name);
         }
 
-        static void OnPlayModeStateChanged(PlayModeStateChange state)
-        {
-            if (state != PlayModeStateChange.EnteredPlayMode) return;
-            var json = SessionState.GetString(SessionKey, "");
-            if (string.IsNullOrEmpty(json)) return;
-            var names = JsonNode.Parse(json)?.AsArray();
-            if (names == null) return;
-            DisposeAll();
-            foreach (var node in names)
-            {
-                var entry = node?.GetValue<string>() ?? "";
-                if (string.IsNullOrEmpty(entry)) continue;
-                var (category, markerName) = ParseMarker(entry);
-                s_recorders[entry] = ProfilerRecorder.StartNew(category, markerName, 300);
-            }
-        }
-
-        static void StartRecorders(string[] entries)
-        {
-            DisposeAll();
-            var arr = new JsonArray();
-            foreach (var entry in entries)
-            {
-                if (string.IsNullOrEmpty(entry)) continue;
-                var (category, markerName) = ParseMarker(entry);
-                s_recorders[entry] = ProfilerRecorder.StartNew(category, markerName, 300);
-                arr.Add(entry);
-            }
-            SessionState.SetString(SessionKey, arr.ToJsonString());
-        }
-
         static void DisposeAll()
         {
             foreach (var kvp in s_recorders)
-            {
-                var r = kvp.Value;
-                r.Dispose();
-            }
+                kvp.Value.Dispose();
             s_recorders.Clear();
         }
 
@@ -85,7 +43,7 @@ namespace LLMDevTools
         private sealed class ProfilerStartCmd : IAgentCommand
         {
             public string    Cmd         => "profiler_start";
-            public string    Description => "Begin recording named profiler markers. Prefix with a category using 'Category/Name' (e.g. 'Memory/GC.Alloc'). Defaults to ProfilerCategory.Scripts. Recorders are recreated automatically on play mode entry.";
+            public string    Description => "Begin recording named profiler markers. Works in edit mode and play mode. Prefix with a category using 'Category/Name' (e.g. 'Render/Camera.Render'). Use execute_script to fire custom markers, then call profiler_get_samples.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("markers", "any", "", "JSON array of marker name strings to record"),
@@ -103,11 +61,14 @@ namespace LLMDevTools
                     return err;
                 }
 
-                var names = new string[markersNode.Count];
-                for (int i = 0; i < markersNode.Count; i++)
-                    names[i] = markersNode[i]?.GetValue<string>() ?? "";
-
-                StartRecorders(names);
+                DisposeAll();
+                foreach (var node in markersNode)
+                {
+                    var entry = node?.GetValue<string>() ?? "";
+                    if (string.IsNullOrEmpty(entry)) continue;
+                    var (category, markerName) = ParseMarker(entry);
+                    s_recorders[entry] = ProfilerRecorder.StartNew(category, markerName, 300);
+                }
 
                 var markerArr = new JsonArray();
                 foreach (var name in s_recorders.Keys)
@@ -146,7 +107,6 @@ namespace LLMDevTools
             public JsonObject Execute(string uid, string requestJson)
             {
                 DisposeAll();
-                SessionState.EraseString(SessionKey);
                 return AgentBridge.MakeResponse(uid, Cmd, "ok");
             }
         }
@@ -154,7 +114,7 @@ namespace LLMDevTools
         private sealed class ProfilerGetSamplesCmd : IAgentCommand
         {
             public string    Cmd         => "profiler_get_samples";
-            public string    Description => "Return summary stats (and optionally raw values) for recorded markers.";
+            public string    Description => "Return summary stats (and optionally raw values) for recorded markers. Call profiler_start first, then fire markers via execute_script or by running the game.";
             public ArgSpec[] Args        => new[]
             {
                 new ArgSpec("marker", "string", "", "Filter to a single named marker; omit for all"),
@@ -235,39 +195,5 @@ namespace LLMDevTools
                 return resp;
             }
         }
-        private sealed class ProfilerBenchmarkCmd : IAgentCommand
-        {
-            public string    Cmd         => "profiler_benchmark";
-            public string    Description => "Fire a named ProfilerMarker with real CPU work to generate measurable timing samples. Call profiler_start with the same marker name first.";
-            public ArgSpec[] Args        => new[]
-            {
-                new ArgSpec("marker",     "string", "AgentBridge.Benchmark", "Marker name to fire"),
-                new ArgSpec("iterations", "int",    "5",                     "Number of Begin/End cycles"),
-                new ArgSpec("work",       "int",    "500000",                "Inner loop iterations per cycle"),
-            };
-
-            public JsonObject Execute(string uid, string requestJson)
-            {
-                var req        = JsonNode.Parse(requestJson);
-                var markerName = req?["marker"]?.GetValue<string>() ?? "AgentBridge.Benchmark";
-                int iterations = req?["iterations"]?.GetValue<int>() ?? 5;
-                int work       = req?["work"]?.GetValue<int>() ?? 500000;
-
-                var m = new ProfilerMarker(ProfilerCategory.Scripts, markerName);
-                for (int i = 0; i < iterations; i++)
-                {
-                    m.Begin();
-                    double x = 0;
-                    for (int j = 0; j < work; j++) x += j;
-                    UnityEngine.Debug.Log(x); // prevent JIT dead-code elimination
-                    m.End();
-                }
-
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["fired"] = iterations;
-                return resp;
-            }
-        }
     }
 }
-
