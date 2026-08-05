@@ -5,11 +5,18 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 
 namespace LLMDevTools
 {
+    public static class MainThread
+    {
+        public static T   Run<T>(Func<T> work) => AgentBridge.RunOnMainThread(work);
+        public static void Run(Action work)    => AgentBridge.RunOnMainThread<int>(() => { work(); return 0; });
+    }
+
     public static class ScriptCommand
     {
         internal static string FindDotnet()
@@ -36,6 +43,9 @@ namespace LLMDevTools
             "using System.Collections.Generic;\n" +
             "using UnityEngine;\n" +
             "using UnityEditor;\n" +
+            "using MT = LLMDevTools.MainThread;\n" +
+            "// Run() executes on a background thread.\n" +
+            "// Wrap all Unity API calls: MT.Run(() => Time.frameCount)\n" +
             "public static class AgentScript {\n" +
             "    public static string Run() {\n" +
             code + "\n" +
@@ -203,55 +213,80 @@ namespace LLMDevTools
 
                 Application.LogCallback capture = (msg, _, type) =>
                     logs.Add(new JsonObject { ["type"] = type.ToString(), ["message"] = msg });
+                Application.logMessageReceivedThreaded += capture;
 
-                Application.logMessageReceived += capture;
-                string returnValue = null;
-                try
+                Task.Run(() =>
                 {
                     var assembly = ScriptCommand.CompileAndLoad(source, out var compileError);
                     if (assembly == null)
                     {
-                        var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                        err["message"] = compileError;
-                        return err;
+                        AgentBridge.RunOnMainThread<int>(() =>
+                        {
+                            Application.logMessageReceivedThreaded -= capture;
+                            var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                            err["message"] = compileError;
+                            AgentBridge.Respond(err);
+                            return 0;
+                        });
+                        return;
                     }
 
-                    var type   = assembly.GetType("AgentScript");
-                    var method = type?.GetMethod("Run", BindingFlags.Public | BindingFlags.Static);
+                    var scriptType = assembly.GetType("AgentScript");
+                    var method     = scriptType?.GetMethod("Run", BindingFlags.Public | BindingFlags.Static);
                     if (method == null)
                     {
-                        CollectibleLoader.Unload(assembly);
-                        var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                        err["message"] = "Compiled assembly is missing AgentScript.Run()";
-                        return err;
+                        AgentBridge.RunOnMainThread<int>(() =>
+                        {
+                            Application.logMessageReceivedThreaded -= capture;
+                            CollectibleLoader.Unload(assembly);
+                            var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                            err["message"] = "Compiled assembly is missing AgentScript.Run()";
+                            AgentBridge.Respond(err);
+                            return 0;
+                        });
+                        return;
                     }
 
-                    var result = method.Invoke(null, null);
-                    returnValue = result?.ToString();
-                    CollectibleLoader.Unload(assembly);
-                }
-                catch (TargetInvocationException tex)
-                {
-                    CollectibleLoader.Unload(tex.TargetSite?.DeclaringType?.Assembly);
-                    var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    err["message"] = tex.InnerException?.Message ?? tex.Message;
-                    return err;
-                }
-                catch (Exception ex)
-                {
-                    var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                    err["message"] = ex.Message;
-                    return err;
-                }
-                finally
-                {
-                    Application.logMessageReceived -= capture;
-                }
+                    AgentBridge.RunOnMainThread<int>(() =>
+                    {
+                        AgentBridge.Notify("script_started", new JsonObject());
+                        return 0;
+                    });
 
-                var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-                resp["logs"]        = logs;
-                resp["returnValue"] = returnValue;
-                return resp;
+                    string returnValue = null;
+                    Exception scriptEx = null;
+                    try
+                    {
+                        var result = method.Invoke(null, null);
+                        returnValue = result?.ToString();
+                    }
+                    catch (TargetInvocationException tex) { scriptEx = tex.InnerException ?? tex; }
+                    catch (Exception ex)                  { scriptEx = ex; }
+
+                    AgentBridge.RunOnMainThread<int>(() =>
+                    {
+                        Application.logMessageReceivedThreaded -= capture;
+                        CollectibleLoader.Unload(assembly);
+                        if (scriptEx != null)
+                        {
+                            AgentBridge.Notify("script_failed", new JsonObject { ["message"] = scriptEx.Message });
+                            var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                            err["message"] = scriptEx.Message;
+                            AgentBridge.Respond(err);
+                        }
+                        else
+                        {
+                            AgentBridge.Notify("script_completed", new JsonObject { ["returnValue"] = returnValue });
+                            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+                            resp["logs"]        = logs;
+                            resp["returnValue"] = returnValue;
+                            AgentBridge.Respond(resp);
+                        }
+                        return 0;
+                    });
+                });
+
+                return null; // async — Task.Run calls Respond() when done
             }
 
             [Serializable]

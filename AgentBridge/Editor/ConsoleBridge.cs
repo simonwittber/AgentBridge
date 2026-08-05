@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using System.Text.Json.Nodes;
 using UnityEditor;
 using UnityEngine;
@@ -25,65 +24,7 @@ namespace LLMDevTools
 
         static ConsoleBridge()
         {
-            LoadExistingEntries();
             Application.logMessageReceived += OnLog;
-        }
-
-        private static void LoadExistingEntries()
-        {
-            var logEntriesType = Type.GetType("UnityEditor.LogEntries,UnityEditor");
-            var logEntryType   = Type.GetType("UnityEditor.LogEntry,UnityEditor");
-            if (logEntriesType == null || logEntryType == null) return;
-
-            var startMethod = logEntriesType.GetMethod("StartGettingEntries",   BindingFlags.Static | BindingFlags.Public);
-            var endMethod   = logEntriesType.GetMethod("EndGettingEntries",     BindingFlags.Static | BindingFlags.Public);
-            var getMethod   = logEntriesType.GetMethod("GetEntryInternal",      BindingFlags.Static | BindingFlags.Public);
-            var msgField    = logEntryType.GetField("message",                  BindingFlags.Instance | BindingFlags.Public);
-            var modeField   = logEntryType.GetField("mode",                     BindingFlags.Instance | BindingFlags.Public);
-            if (startMethod == null || endMethod == null || getMethod == null) return;
-
-            int total = (int)startMethod.Invoke(null, null);
-            var entry = Activator.CreateInstance(logEntryType);
-            long now  = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-            for (int i = 0; i < total; i++)
-            {
-                getMethod.Invoke(null, new object[] { i, entry });
-                string msg  = msgField?.GetValue(entry) as string ?? "";
-                int    mode = modeField != null ? (int)modeField.GetValue(entry) : 0;
-                string t           = ModeToType(mode);
-                _messages[_head]    = msg;
-                _stackTraces[_head] = "";
-                _types[_head]       = t;
-                _timestamps[_head]  = now;
-                _head = (_head + 1) % BufferSize;
-                if (_count < BufferSize) _count++;
-                if (t == "error") _errorCount++;
-            }
-
-            endMethod.Invoke(null, null);
-        }
-
-        // Bitmask values from Unity's internal ConsoleWindow.Mode enum (accessed via reflection).
-        private const int ModeError          = 1;
-        private const int ModeFatal          = 16;
-        private const int ModeScriptingError = 256;
-        private const int ModeCompileError   = 2048;
-        private const int ModeStickyError    = 8192;
-        private const int ModeImportWarning  = 128;
-        private const int ModeScriptWarning  = 512;
-        private const int ModeCompileWarning = 4096;
-        private const int ModeDontShowAgain  = 131072; // Unity sets this on dismissed errors; treated as error here.
-        private const int ModeAssert         = 2;
-        private const int ModeAssertMessage  = 2097152;
-
-        private static string ModeToType(int mode)
-        {
-            if ((mode & (ModeError | ModeFatal | ModeScriptingError | ModeCompileError | ModeStickyError)) != 0) return "error";
-            if ((mode & (ModeImportWarning | ModeScriptWarning | ModeCompileWarning))                      != 0) return "warning";
-            if ((mode & ModeDontShowAgain)                                                                  != 0) return "error";
-            if ((mode & (ModeAssert | ModeAssertMessage))                                                   != 0) return "assert";
-            return "log";
         }
 
         private static void OnLog(string message, string stackTrace, LogType type)

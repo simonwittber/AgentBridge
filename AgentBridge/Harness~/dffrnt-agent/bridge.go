@@ -110,7 +110,7 @@ func send(cfg Config, cmd string, args map[string]any) (map[string]any, error) {
 const staleThreshold = 30 // seconds
 
 // asyncCmds wait for Unity liveness rather than a fixed clock deadline.
-var asyncCmds = map[string]bool{"compile": true, "refresh": true}
+var asyncCmds = map[string]bool{"compile": true, "refresh": true, "execute_script": true}
 
 func sessionAgeSeconds(cfg Config) int64 {
 	data, err := os.ReadFile(cfg.sessionPath())

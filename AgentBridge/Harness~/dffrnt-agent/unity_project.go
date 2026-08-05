@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -20,7 +21,75 @@ type unityInstall struct {
 	Path    string `json:"path"`
 }
 
+func registryDir() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, "AgentBridge"), nil
+}
+
+func listOpenProjects() ([]map[string]any, error) {
+	dir, err := registryDir()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return []map[string]any{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var results []map[string]any
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		var reg struct {
+			Path      string `json:"path"`
+			PID       int    `json:"pid"`
+			WrittenAt int64  `json:"written_at"`
+		}
+		if err := json.Unmarshal(data, &reg); err != nil || reg.Path == "" {
+			continue
+		}
+		ageSeconds := (time.Now().UnixMilli() - reg.WrittenAt) / 1000
+		if ageSeconds > 30 {
+			continue
+		}
+		if !isPidRunning(reg.PID) {
+			continue
+		}
+		results = append(results, map[string]any{
+			"path":       reg.Path,
+			"pid":        reg.PID,
+			"written_at": reg.WrittenAt,
+		})
+	}
+	if results == nil {
+		results = []map[string]any{}
+	}
+	return results, nil
+}
+
 func registerProjectTools(cfg Config, s *server.MCPServer) {
+	listTool := mcp.NewTool("list_projects",
+		mcp.WithDescription("List running Unity projects registered in the AgentBridge registry."),
+	)
+	s.AddTool(listTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		projects, err := listOpenProjects()
+		if err != nil {
+			return nil, fmt.Errorf("list_projects: %w", err)
+		}
+		out, _ := json.MarshalIndent(map[string]any{"projects": projects}, "", "  ")
+		return mcp.NewToolResultText(string(out)), nil
+	})
+
 	findTool := mcp.NewTool("find_unity_installs",
 		mcp.WithDescription("List Unity Editor installations found on this machine."),
 	)

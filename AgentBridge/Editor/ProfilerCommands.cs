@@ -92,7 +92,7 @@ namespace LLMDevTools
                 {
                     var r = s_recorders[key];
                     r.Stop();
-                    s_recorders[key] = r;
+                    s_recorders[key] = r; // ProfilerRecorder is a struct; Stop() mutates the local copy, so write it back.
                 }
                 return AgentBridge.MakeResponse(uid, Cmd, "ok");
             }
@@ -144,7 +144,8 @@ namespace LLMDevTools
                     bool isBytes = recorder.Valid && recorder.UnitType == ProfilerMarkerDataUnit.Bytes;
 
                     double last = 0, sum = 0, min = double.MaxValue, max = 0;
-                    var samplesArr = raw ? new JsonArray() : null;
+                    JsonArray samplesArr = null;
+                    if (raw) samplesArr = new JsonArray();
 
                     for (int i = 0; i < count; i++)
                     {

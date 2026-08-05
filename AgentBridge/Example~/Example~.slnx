@@ -1,4 +1,6 @@
 ﻿<Solution>
+  <Project Path="Unity.Pipeline.Editor.csproj" />
+  <Project Path="Unity.Pipeline.csproj" />
   <Project Path="UnityEngine.UI.csproj" />
   <Project Path="UnityEditor.UI.csproj" />
   <Project Path="UnityEngine.TestRunner.csproj" />
@@ -12,6 +14,7 @@
   <Project Path="Unity.TextMeshPro.Editor.csproj" />
   <Project Path="Unity.Multiplayer.Center.Common.csproj" />
   <Project Path="Unity.InternalAPIEngineBridge.004.csproj" />
+  <Project Path="Unity.Pipeline.CodeGen.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
 </Solution>

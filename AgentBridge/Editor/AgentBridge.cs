@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEditor.Compilation;
 using UnityEditor.SceneManagement;
@@ -57,12 +59,15 @@ namespace LLMDevTools
 
         private static readonly List<CompilerMessage>              _compileMessages = new();
         private static readonly Dictionary<string, IAgentCommand> _handlers        = new();
+        private static readonly ConcurrentQueue<MainThreadItem>   _mainThreadQueue = new();
+        private static readonly int                               _mainThreadId    = System.Threading.Thread.CurrentThread.ManagedThreadId;
         private static int               _compileErrorCount;
         private static volatile bool     _scriptsDirty;
         private static volatile bool     _refreshNeeded;
         private static bool              _wasUpdating;
         private static FileSystemWatcher _assetWatcher;
         private static double            _lastScriptWrite = double.MinValue;
+        private static string            _registrationPath;
 
         internal static void MarkScriptsDirty()   => _scriptsDirty  = true;
         internal static void ClearScriptsDirty()  => _scriptsDirty  = false;
@@ -106,6 +111,7 @@ namespace LLMDevTools
                     ["data"]       = data,
                     ["written_at"] = ts,
                 };
+                AppendLog(entry);
                 Directory.CreateDirectory(NotificationsDir);
                 File.WriteAllText(
                     Path.Combine(NotificationsDir, $"{ts:D20}-{uid}.json"),
@@ -116,10 +122,41 @@ namespace LLMDevTools
 
         public static void Register(IAgentCommand handler) => _handlers[handler.Cmd] = handler;
 
-        public static JsonObject TestInvoke(string cmd, string requestJson = "{}")
+        internal static Action<JsonObject> _testRespondCapture;
+
+        public static T RunOnMainThread<T>(Func<T> work)
+        {
+            if (System.Threading.Thread.CurrentThread.ManagedThreadId == _mainThreadId)
+                return work();
+            var tcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _mainThreadQueue.Enqueue(new MainThreadItem { Work = () => work(), Result = tcs });
+            return (T)tcs.Task.Result;
+        }
+
+        public static JsonObject TestInvoke(string cmd, string requestJson = "{}", int timeoutMs = 10000)
         {
             if (!_handlers.TryGetValue(cmd, out var handler)) return null;
-            return handler.Execute("test", requestJson);
+            JsonObject captured = null;
+            _testRespondCapture = r => captured = r;
+            var result = handler.Execute("test", requestJson);
+            if (result != null)
+            {
+                _testRespondCapture = null;
+                return result;
+            }
+            // Async handler: pump the main-thread queue until Respond fires.
+            var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            while (captured == null && DateTime.UtcNow < deadline)
+            {
+                while (_mainThreadQueue.TryDequeue(out var item))
+                {
+                    try   { item.Result.SetResult(item.Work()); }
+                    catch (Exception ex) { item.Result.SetException(ex); }
+                }
+                System.Threading.Thread.Sleep(10);
+            }
+            _testRespondCapture = null;
+            return captured;
         }
 
         // ── Boot ──────────────────────────────────────────────────────────────
@@ -157,6 +194,9 @@ namespace LLMDevTools
             EditorApplication.update                        += OnUpdate;
             EditorApplication.playModeStateChanged          += OnPlayModeChanged;
             EditorSceneManager.sceneOpened                  += OnSceneOpened;
+
+            _registrationPath = ComputeRegistrationPath();
+            EditorApplication.quitting += DeleteGlobalRegistration;
 
             WriteSession();
 
@@ -293,6 +333,12 @@ namespace LLMDevTools
 
         private static void OnUpdate()
         {
+            while (_mainThreadQueue.TryDequeue(out var item))
+            {
+                try   { item.Result.SetResult(item.Work()); }
+                catch (Exception ex) { item.Result.SetException(ex); }
+            }
+
             double now = EditorApplication.timeSinceStartup;
             if (now < _nextPoll) return;
             _nextPoll = now + PollInterval;
@@ -424,6 +470,7 @@ namespace LLMDevTools
                 }
             }
             catch (IOException) { }
+            _testRespondCapture?.Invoke(resp);
             _pendingUid         = null;
             _pendingCmd         = null;
             _pendingFile        = null;
@@ -494,6 +541,47 @@ namespace LLMDevTools
                 }.ToJsonString());
             }
             catch (IOException) { }
+            WriteGlobalRegistration();
+        }
+
+        private static string ComputeRegistrationPath()
+        {
+            try
+            {
+                var projectPath = Path.GetFullPath(Path.GetDirectoryName(Application.dataPath));
+                byte[] hash;
+                using (var md5 = System.Security.Cryptography.MD5.Create())
+                    hash = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(projectPath.ToLowerInvariant()));
+                var hex = BitConverter.ToString(hash).Replace("-", "").ToLower();
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "AgentBridge",
+                    hex + ".json");
+            }
+            catch { return null; }
+        }
+
+        private static void WriteGlobalRegistration()
+        {
+            if (_registrationPath == null) return;
+            try
+            {
+                var projectPath = Path.GetFullPath(Path.GetDirectoryName(Application.dataPath));
+                Directory.CreateDirectory(Path.GetDirectoryName(_registrationPath));
+                File.WriteAllText(_registrationPath, new JsonObject
+                {
+                    ["path"]       = projectPath,
+                    ["pid"]        = System.Diagnostics.Process.GetCurrentProcess().Id,
+                    ["written_at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                }.ToJsonString());
+            }
+            catch { }
+        }
+
+        private static void DeleteGlobalRegistration()
+        {
+            if (_registrationPath == null) return;
+            try { File.Delete(_registrationPath); } catch { }
         }
 
         public static JsonObject MakeResponse(string uid, string cmd, string status)
@@ -527,6 +615,12 @@ namespace LLMDevTools
         }
 
         [Serializable] private class Request { public string uid; public string cmd; public string agent_id; }
+
+        internal struct MainThreadItem
+        {
+            public Func<object>                 Work;
+            public TaskCompletionSource<object> Result;
+        }
 
         // ── Asset watcher ─────────────────────────────────────────────────────
 

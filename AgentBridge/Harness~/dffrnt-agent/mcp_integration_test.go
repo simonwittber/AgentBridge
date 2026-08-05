@@ -293,6 +293,19 @@ func (c *mcpClient) waitTypedNotification(t *testing.T, eventType string, timeou
 	}
 }
 
+// drainNotifications discards any notifications already buffered in notifCh.
+// Call this before starting a goroutine that waits for a specific notification
+// to prevent stale events from a previous test being picked up.
+func (c *mcpClient) drainNotifications() {
+	for {
+		select {
+		case <-c.notifCh:
+		default:
+			return
+		}
+	}
+}
+
 // saveIfDirty saves the active scene if it has unsaved changes, preventing
 // Unity from showing a save-dialog when a subsequent operation switches scenes.
 // If the scene has never been saved (empty path), it logs a warning and skips —

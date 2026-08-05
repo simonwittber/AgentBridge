@@ -4,25 +4,32 @@
 
 ### Added
 - `screenshot` now uses `ScreenCapture.CaptureScreenshotAsTexture()` in play mode and a synchronous scene-view camera render in edit mode. The command returns immediately and fires a `screenshot_ready` notification with `path`, `width`, and `height` when the image is saved. `max_size` still applies.
-- Notification system: AgentBridge writes `Temp/agent/notifications/<ts>-<uid>.json` files for lifecycle events. In `serve` mode, `dffrnt-agent` polls this directory every 500 ms and forwards each event to MCP clients as a `notifications/message`. Events: `compile_started`, `compile_finished` (includes `error_count`), `compile_failure` (includes error details), `refresh_started`, `refresh_finished`, `play_mode_entered`, `play_mode_exited`, `scene_opened` (includes `name`, `path`, `mode`), `screenshot_ready` (includes `path`, `width`, `height`).
+- Notification system: AgentBridge writes `Temp/agent/notifications/<ts>-<uid>.json` files for lifecycle events. In `serve` mode, `dffrnt-agent` polls this directory every 500 ms and forwards each event to MCP clients as a `notifications/message`. Events: `compile_started`, `compile_finished` (includes `error_count`), `compile_failure` (includes error details), `refresh_started`, `refresh_finished`, `play_mode_entered`, `play_mode_exited`, `scene_opened` (includes `name`, `path`, `mode`), `screenshot_ready` (includes `path`, `width`, `height`), `script_started`, `script_failed`.
 - Unity project auto-discovery: `dffrnt-agent` checks the current working directory and all immediate subdirectories for a Unity project (presence of `Assets/` and `ProjectSettings/`). Directories without a `~` suffix take priority. No `--project` flag needed when running from the project root or a parent folder.
 - Tools list refresh: after `set_project` loads commands from Unity, the server sends a `notifications/tools/list_changed` event so MCP clients pick up the new tools without a reconnect.
 - `agent_id` field: requests and responses include an optional `agent_id` string. Pass `--agent-id <id>` to `dffrnt-agent` to tag all commands from one agent instance. The session heartbeat also includes the current `agent_id` so multiple agents can see which agent holds the bridge.
 - Auto-compile timer: when a script file change is detected and no manual `compile` command arrives within 10 seconds, AgentBridge triggers compilation automatically. This prevents stale compile state when the user switches back to the Editor after an agent writes scripts.
+- Global project registry: AgentBridge writes `%APPDATA%/AgentBridge/<hash>.json` on each heartbeat and deletes it on quit. The file contains the project path, PID, and timestamp. `dffrnt-agent` uses this to discover running projects without a `set_project` call.
+- `list_projects` MCP tool: returns all Unity projects currently running with AgentBridge. Validates each entry by PID liveness and a 30-second timestamp window.
+- MCP server startup instructions: the server now tells MCP clients to call `list_projects` then `set_project` when no project is connected.
+- `MainThread` static class in `ScriptCommand.cs`: provides `MT.Run(() => ...)` for scripts to marshal Unity API calls from the background thread back to the main thread. Available in all `execute_script` snippets via the `using MT = LLMDevTools.MainThread` alias injected by the wrapper.
 
 ### Changed
+- `execute_script` now runs the compiled script on a background thread. Unity API calls inside the script must use `MT.Run(() => ...)`. The command is non-blocking: it returns `null` from `Execute` and calls `AgentBridge.Respond` when the script completes. The Go harness treats `execute_script` as async (same as `compile` and `refresh`).
 - `profiler_start` now works in edit mode and play mode. The play-mode-only restriction is removed.
 - `profiler_get_samples` returns a `unit` field (`"ms"` or `"bytes"`) and includes aliased `lastMs`/`avgMs`/`minMs`/`maxMs` fields for time markers.
 - When scripts need recompilation or assets need reimport, AgentBridge now triggers `compile` or `refresh` automatically and replays the blocked command after completion. Previously a hard error was returned. Commands that are always safe to run (log checks, script execution, asset writes) are not affected.
 - Renamed `SceneBridge.SilentlyClearDirtyScenes` to `SaveDirtyScenesWithoutPrompt`. The old name implied that the method discards changes, but it saves named scenes without a prompt.
 - Removed the unused `_wasPlayingBeforeReload` field from `AgentBridge`. Unity fires `ExitingPlayMode` before `OnBeforeReload`, so the field was always `false` when read.
-- Replaced magic bitmask literals in `ConsoleBridge.ModeToType` with named constants from Unity's internal `ConsoleWindow.Mode` enum.
 - Renamed `SceneBridge.F` to `ToFloat` across all callers, including `MaterialCommands`.
 - Renamed `PathUtils.IsWritable` to `IsAllowedWritePath`. The method checks whether a path is in an allowed write location, not whether the file system permits writes.
 - `AppendLog` now logs a Unity Console warning on failure instead of silently swallowing the exception.
+- `AgentLogWindow` now displays notification events (from the notifications directory) as distinct log entries. Non-error notifications appear in yellow; error notifications appear in red.
+- `console_logs` no longer pre-loads entries from the Unity console window on domain reload. Only messages received via `Application.logMessageReceived` after the current session started are returned. This prevents stale logs from previous play sessions appearing in results.
 
 ### Removed
 - `profiler_measure`: removed. Use `execute_script` to fire a `ProfilerMarker` and `profiler_get_samples` to read the results.
+- `ConsoleBridge.LoadExistingEntries()` and all associated reflection code removed. The method loaded stale logs from Unity's internal console window on every domain reload, including messages from previous play sessions.
 
 ## [0.3.0] - 2026-07-28
 

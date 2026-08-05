@@ -128,6 +128,32 @@ namespace LLMDevTools
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
+                if (root.TryGetProperty("type", out var notifType) && !root.TryGetProperty("uid", out _))
+                {
+                    long ts = root.TryGetProperty("written_at", out var wtEl) ? wtEl.GetInt64() : 0;
+                    string time = ts > 0
+                        ? DateTimeOffset.FromUnixTimeMilliseconds(ts).LocalDateTime.ToString("HH:mm:ss")
+                        : DateTime.Now.ToString("HH:mm:ss");
+                    string ntype = notifType.GetString() ?? "notification";
+                    string notifExtra = "";
+                    if (root.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Object)
+                    {
+                        var parts = new List<string>();
+                        foreach (var prop in dataEl.EnumerateObject())
+                        {
+                            string val = prop.Value.ValueKind == JsonValueKind.String
+                                ? prop.Value.GetString() ?? ""
+                                : prop.Value.ToString();
+                            if (!string.IsNullOrEmpty(val))
+                                parts.Add($"{prop.Name}={val}");
+                        }
+                        notifExtra = string.Join(" ", parts);
+                    }
+                    bool isError = ntype.EndsWith("_failure") || ntype.EndsWith("_failed");
+                    var notifColor = isError ? new Color(1f, 0.4f, 0.4f) : new Color(1f, 1f, 0.2f);
+                    return new LogEntry(time, ntype, "", "notify", notifExtra, notifColor);
+                }
+
                 if (root.TryGetProperty("_marker", out var marker))
                 {
                     long ts = root.TryGetProperty("_ts", out var tsEl) ? tsEl.GetInt64() : 0;

@@ -51,6 +51,11 @@ func (s *serveState) send(cmd string, args map[string]any) (map[string]any, erro
 // returns them regardless of whether Unity is running.
 var staticCmds = []any{
 	map[string]any{
+		"cmd":         "list_projects",
+		"description": "List running Unity projects registered in the AgentBridge registry.",
+		"args":        []any{},
+	},
+	map[string]any{
 		"cmd":         "set_project",
 		"description": "Set the Unity project path.",
 		"args":        []any{map[string]any{"name": "path", "type": "string", "default": "", "description": "Absolute path to the Unity project root"}},
@@ -85,7 +90,10 @@ var staticCmds = []any{
 
 func runServe(cfg Config) {
 	state := &serveState{cfg: cfg, rawCmds: staticCmds}
-	s := server.NewMCPServer("unity-agentbridge", "0.1.0", server.WithToolCapabilities(true))
+	s := server.NewMCPServer("unity-agentbridge", "0.1.0",
+		server.WithToolCapabilities(true),
+		server.WithInstructions("If no Unity project is connected, call list_projects to discover running projects, then set_project to connect to one."),
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
