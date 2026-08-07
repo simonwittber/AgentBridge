@@ -13,9 +13,12 @@
 - `list_projects` MCP tool: returns all Unity projects currently running with AgentBridge. Validates each entry by PID liveness and a 30-second timestamp window.
 - MCP server startup instructions: the server now tells MCP clients to call `list_projects` then `set_project` when no project is connected.
 - `MainThread` static class in `ScriptCommand.cs`: provides `MT.Run(() => ...)` for scripts to marshal Unity API calls from the background thread back to the main thread. Available in all `execute_script` snippets via the `using MT = LLMDevTools.MainThread` alias injected by the wrapper.
+- `console_logs` now accepts an optional `filter` string argument. When provided, only entries whose message contains the filter string (case-insensitive) are returned. Omitting the argument returns all entries as before.
 
 ### Changed
-- `execute_script` now runs the compiled script on a background thread. Unity API calls inside the script must use `MT.Run(() => ...)`. The command is non-blocking: it returns `null` from `Execute` and calls `AgentBridge.Respond` when the script completes. The Go harness treats `execute_script` as async (same as `compile` and `refresh`).
+- `execute_script` now runs the compiled script on the Unity main thread. Unity API calls are safe without `MT.Run`. The command is still non-blocking: compilation runs on a background thread, and the script runs on the main thread once compiled.
+- `execute_script` now compiles with debug symbols (`-debug+`) and loads the PDB alongside the assembly. Exception stack traces include source line numbers.
+- `execute_script` rejects code containing `Thread.Sleep`: it blocks the main thread and freezes the Unity Editor.
 - `profiler_start` now works in edit mode and play mode. The play-mode-only restriction is removed.
 - `profiler_get_samples` returns a `unit` field (`"ms"` or `"bytes"`) and includes aliased `lastMs`/`avgMs`/`minMs`/`maxMs` fields for time markers.
 - When scripts need recompilation or assets need reimport, AgentBridge now triggers `compile` or `refresh` automatically and replays the blocked command after completion. Previously a hard error was returned. Commands that are always safe to run (log checks, script execution, asset writes) are not affected.

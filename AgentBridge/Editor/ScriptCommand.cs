@@ -44,8 +44,7 @@ namespace LLMDevTools
             "using UnityEngine;\n" +
             "using UnityEditor;\n" +
             "using MT = LLMDevTools.MainThread;\n" +
-            "// Run() executes on a background thread.\n" +
-            "// Wrap all Unity API calls: MT.Run(() => Time.frameCount)\n" +
+            "// Run() executes on the main thread. Unity API calls are safe.\n" +
             "public static class AgentScript {\n" +
             "    public static string Run() {\n" +
             code + "\n" +
@@ -118,7 +117,10 @@ namespace LLMDevTools
 
                 if (!File.Exists(outPath)) { error = "Compiler produced no output file."; return null; }
 
-                return CollectibleLoader.Load(File.ReadAllBytes(outPath));
+                var dllBytes = File.ReadAllBytes(outPath);
+                var pdbPath  = Path.ChangeExtension(outPath, ".pdb");
+                var pdbBytes = File.Exists(pdbPath) ? File.ReadAllBytes(pdbPath) : null;
+                return CollectibleLoader.Load(dllBytes, pdbBytes);
             }
             finally
             {
@@ -134,7 +136,7 @@ namespace LLMDevTools
             sb.AppendLine("-langversion:preview");
             sb.AppendLine("-nostdlib");
             sb.AppendLine("-optimize-");
-            sb.AppendLine("-debug-");
+            sb.AppendLine("-debug+");
             sb.AppendLine($"-out:\"{Esc(outPath)}\"");
 
 #pragma warning disable UAC0005, UAC0007
@@ -165,19 +167,24 @@ namespace LLMDevTools
             static readonly Type      _alcTypeFull  = Type.GetType("System.Runtime.Loader.AssemblyLoadContext, System.Runtime.Loader")
                                                    ?? Type.GetType("System.Runtime.Loader.AssemblyLoadContext");
             static readonly MethodInfo _loadStream  = _alcTypeFull?.GetMethod("LoadFromStream", new[] { typeof(Stream) });
+            static readonly MethodInfo _loadStream2 = _alcTypeFull?.GetMethod("LoadFromStream", new[] { typeof(Stream), typeof(Stream) });
             static readonly MethodInfo _getCtx      = _alcTypeFull?.GetMethod("GetLoadContext", BindingFlags.Public | BindingFlags.Static);
             static readonly MethodInfo _unload      = _alcTypeFull?.GetMethod("Unload");
 
-            internal static Assembly Load(byte[] bytes)
+            internal static Assembly Load(byte[] bytes, byte[] pdbBytes = null)
             {
                 var ctor = _alcTypeFull?.GetConstructor(new[] { typeof(string), typeof(bool) });
                 if (ctor == null || _loadStream == null)
                 {
 #pragma warning disable UAC0020
-                    return Assembly.Load(bytes);
+                    return pdbBytes != null
+                        ? Assembly.Load(bytes, pdbBytes)
+                        : Assembly.Load(bytes);
 #pragma warning restore UAC0020
                 }
                 var alc = ctor.Invoke(new object[] { "AgentBridgeScript", true });
+                if (pdbBytes != null && _loadStream2 != null)
+                    return (Assembly)_loadStream2.Invoke(alc, new object[] { new MemoryStream(bytes), new MemoryStream(pdbBytes) });
                 return (Assembly)_loadStream.Invoke(alc, new object[] { new MemoryStream(bytes) });
             }
 
@@ -187,6 +194,13 @@ namespace LLMDevTools
                 var ctx = _getCtx.Invoke(null, new object[] { asm });
                 if (ctx != null) _unload.Invoke(ctx, null);
             }
+        }
+
+        internal static Exception EnrichThreadException(Exception ex)
+        {
+            if (ex?.Message?.Contains("main thread") == true)
+                return new Exception(ex.Message + "\nUse MT.Run(() => ...) to call Unity API from the script.");
+            return ex;
         }
 
         private sealed class ExecuteScriptCmd : IAgentCommand
@@ -205,6 +219,13 @@ namespace LLMDevTools
                 {
                     var err = AgentBridge.MakeResponse(uid, Cmd, "error");
                     err["message"] = "code is required";
+                    return err;
+                }
+
+                if (p.code.Contains("Thread.Sleep"))
+                {
+                    var err = AgentBridge.MakeResponse(uid, Cmd, "error");
+                    err["message"] = "Thread.Sleep is not allowed: it blocks the Unity main thread.";
                     return err;
                 }
 
@@ -250,21 +271,17 @@ namespace LLMDevTools
                     AgentBridge.RunOnMainThread<int>(() =>
                     {
                         AgentBridge.Notify("script_started", new JsonObject());
-                        return 0;
-                    });
 
-                    string returnValue = null;
-                    Exception scriptEx = null;
-                    try
-                    {
-                        var result = method.Invoke(null, null);
-                        returnValue = result?.ToString();
-                    }
-                    catch (TargetInvocationException tex) { scriptEx = tex.InnerException ?? tex; }
-                    catch (Exception ex)                  { scriptEx = ex; }
+                        string returnValue = null;
+                        Exception scriptEx = null;
+                        try
+                        {
+                            var result = method.Invoke(null, null);
+                            returnValue = result?.ToString();
+                        }
+                        catch (TargetInvocationException tex) { scriptEx = EnrichThreadException(tex.InnerException ?? tex); }
+                        catch (Exception ex)                  { scriptEx = EnrichThreadException(ex); }
 
-                    AgentBridge.RunOnMainThread<int>(() =>
-                    {
                         Application.logMessageReceivedThreaded -= capture;
                         CollectibleLoader.Unload(assembly);
                         if (scriptEx != null)
