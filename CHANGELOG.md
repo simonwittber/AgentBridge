@@ -28,11 +28,11 @@
 - Renamed `PathUtils.IsWritable` to `IsAllowedWritePath`. The method checks whether a path is in an allowed write location, not whether the file system permits writes.
 - `AppendLog` now logs a Unity Console warning on failure instead of silently swallowing the exception.
 - `AgentLogWindow` now displays notification events (from the notifications directory) as distinct log entries. Non-error notifications appear in yellow; error notifications appear in red.
-- `console_logs` no longer pre-loads entries from the Unity console window on domain reload. Only messages received via `Application.logMessageReceived` after the current session started are returned. This prevents stale logs from previous play sessions appearing in results.
+- `console_logs` now reads only the entries currently visible in the Unity Console window using the internal `UnityEditor.LogEntries` API, instead of parsing the entire `Editor.log` file. Returns only current console state, not historical data.
 
 ### Removed
 - `profiler_measure`: removed. Use `execute_script` to fire a `ProfilerMarker` and `profiler_get_samples` to read the results.
-- `ConsoleBridge.LoadExistingEntries()` and all associated reflection code removed. The method loaded stale logs from Unity's internal console window on every domain reload, including messages from previous play sessions.
+- Historical log file parsing from `ConsoleBridge`. Replaced with internal `LogEntries` API that returns only current console window entries.
 
 ## [0.3.0] - 2026-07-28
 
