@@ -1,0 +1,16 @@
+{
+    "name": "com.dffrnt.agent-scripts",
+    "rootNamespace": "LLMDevTools.GeneratedCommands",
+    "references": [
+        "com.dffrnt.llm-dev-tools"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": []
+}
