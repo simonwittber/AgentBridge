@@ -92,7 +92,14 @@ func runServe(cfg Config) {
 	state := &serveState{cfg: cfg, rawCmds: staticCmds}
 	s := server.NewMCPServer("unity-agentbridge", "0.1.0",
 		server.WithToolCapabilities(true),
-		server.WithInstructions("If no Unity project is connected, call list_projects to discover running projects, then set_project to connect to one."),
+		server.WithInstructions(`If no Unity project is connected, call list_projects to discover running projects, then set_project to connect to one.
+
+You can create persistent custom commands using register_command. This is useful for domain-specific tasks that you need to call multiple times:
+- register_command: Create a reusable command by providing C# code, parameter definitions, and a name. The command is persisted and available after Editor reload.
+- Once registered, the command appears in list_commands and can be called with different arguments.
+- Example: batch_import_assets, validate_scene_structure, optimize_textures, etc.
+
+For one-off code execution, use execute_script directly.`),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())

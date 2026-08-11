@@ -13,13 +13,23 @@ namespace LLMDevTools
     public sealed class RegisterCommandCmd : IAgentCommand
     {
         public string Cmd => "register_command";
-        public string Description => "Register a custom command: compile C# code and save as a persistent IAgentCommand.";
+        public string Description => @"Register a persistent custom command: compile C# code and save as a reusable IAgentCommand.
+
+Once registered, the command is available in list_commands after a domain reload and can be called multiple times with different parameters. Useful for creating domain-specific tools (batch_import_assets, validate_scene_structure, etc.) that the LLM can reuse without re-registering.
+
+Example usage:
+  name: batch_import_assets
+  description: Batch import assets from a folder
+  code: var assets = AssetDatabase.FindAssets(filter); return $""Imported {assets.Length} assets"";
+  args: [{""name"": ""filter"", ""type"": ""string"", ""default"": """", ""description"": ""Search filter""}]
+
+After registration, call the command like any other (available after Editor restart).";
         public ArgSpec[] Args => new[]
         {
-            new ArgSpec("name", "string", "", "Command name (e.g., batch_import_assets). Must be alphanumeric with underscores."),
-            new ArgSpec("description", "string", "", "Human-readable description of what the command does."),
-            new ArgSpec("code", "string", "", "C# code for the command body. Becomes the Run() method."),
-            new ArgSpec("args", "any", "[]", "JSON array of {name, type, default, description} parameter definitions. Types: string, int, float, bool."),
+            new ArgSpec("name", "string", "", "Command name (e.g., batch_import_assets). Alphanumeric + underscores only."),
+            new ArgSpec("description", "string", "", "Human-readable description. Shown in command list and help."),
+            new ArgSpec("code", "string", "", "C# code for Run() method. Has access to UnityEngine, UnityEditor, AssetDatabase, etc."),
+            new ArgSpec("args", "any", "[]", "JSON array of parameter specs: [{name, type, default, description}]. Types: string, int, float, bool."),
         };
 
         private static readonly string[] ReservedNames = new[]
