@@ -186,5 +186,41 @@ namespace LLMDevTools.Tests
             Assert.Throws<InvalidOperationException>(() =>
                 AgentBridge.RunOnMainThread<int>(() => throw new InvalidOperationException("test")));
         }
+
+        // ── EnrichThreadException ─────────────────────────────────────────────
+
+        [Test]
+        public void EnrichThreadException_NullInput_ReturnsNull()
+        {
+            Assert.That(ScriptCommand.EnrichThreadException(null), Is.Null);
+        }
+
+        [Test]
+        public void EnrichThreadException_UnrelatedMessage_Unchanged()
+        {
+            var ex     = new Exception("something went wrong");
+            var result = ScriptCommand.EnrichThreadException(ex);
+            Assert.That(result, Is.SameAs(ex));
+        }
+
+        [Test]
+        public void EnrichThreadException_MainThreadMessage_AppendsMTHint()
+        {
+            var ex     = new Exception("get_productName can only be called from the main thread.");
+            var result = ScriptCommand.EnrichThreadException(ex);
+            Assert.That(result,         Is.Not.SameAs(ex));
+            Assert.That(result.Message, Does.Contain("MT.Run(() => ...)"));
+            Assert.That(result.Message, Does.Contain("main thread"));
+        }
+
+        [Test]
+        public void ExecuteScript_MainThreadViolation_ErrorContainsMTHint()
+        {
+            var resp = AgentBridge.TestInvoke("execute_script",
+                "{\"code\":\"throw new System.Exception(\\\"main thread err\\\");\"}");
+            Assert.That(resp,                                Is.Not.Null);
+            Assert.That(resp["status"]?.GetValue<string>(),  Is.EqualTo("error"));
+            Assert.That(resp["message"]?.GetValue<string>(), Does.Contain("MT.Run(() => ...)"));
+        }
     }
 }

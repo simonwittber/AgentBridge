@@ -178,7 +178,7 @@ namespace LLMDevTools
         {
             using var sha = SHA256.Create();
             var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(text));
-            return "sha256:" + Convert.ToHexString(hash).ToLower();
+            return "sha256:" + BitConverter.ToString(hash).Replace("-", "").ToLower();
         }
 
         private string GenerateCommandSource(string name, string className, string description, string code, ArgSpec[] args)
