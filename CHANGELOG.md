@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-11
+
 ### Added
 - `screenshot` now uses `ScreenCapture.CaptureScreenshotAsTexture()` in play mode and a synchronous scene-view camera render in edit mode. The command returns immediately and fires a `screenshot_ready` notification with `path`, `width`, and `height` when the image is saved. `max_size` still applies.
 - Notification system: AgentBridge writes `Temp/agent/notifications/<ts>-<uid>.json` files for lifecycle events. In `serve` mode, `dffrnt-agent` polls this directory every 500 ms and forwards each event to MCP clients as a `notifications/message`. Events: `compile_started`, `compile_finished` (includes `error_count`), `compile_failure` (includes error details), `refresh_started`, `refresh_finished`, `play_mode_entered`, `play_mode_exited`, `scene_opened` (includes `name`, `path`, `mode`), `screenshot_ready` (includes `path`, `width`, `height`), `script_started`, `script_failed`.
