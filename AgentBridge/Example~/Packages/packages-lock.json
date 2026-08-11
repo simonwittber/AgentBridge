@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "com.dffrnt.common": {
+      "version": "file:K:/module-games/Packages/com.dffrnt.common",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {}
+    },
     "com.dffrnt.llm-dev-tools": {
       "version": "file:../..",
       "depth": 0,

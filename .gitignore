@@ -24,6 +24,7 @@ sysinfo.txt
 /[Aa]ssets/[Aa]ssets/
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/
+.multitool
 
 # Unity-generated IDE files
 *.csproj
@@ -38,3 +39,4 @@ AgentBridge/Harness~/dffrnt-agent/dffrnt-agent.exe
 
 # Claude Code
 .claude/
+

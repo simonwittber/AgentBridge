@@ -3,6 +3,7 @@
     "com.dffrnt.llm-dev-tools.tests"
   ],
   "dependencies": {
+    "com.dffrnt.common": "file:K:/module-games/Packages/com.dffrnt.common",
     "com.dffrnt.llm-dev-tools": "file:../..",
     "com.dffrnt.llm-dev-tools.tests": "file:../../Tests~/com.dffrnt.llm-dev-tools.tests",
     "com.unity.ide.visualstudio": "2.0.27",
