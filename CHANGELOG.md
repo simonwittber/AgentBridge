@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-26
+
+### Added
+- `register_command` tool: creates a persistent custom `IAgentCommand` from C# source. The command is saved to `Assets/AgentBridgeScripts/`, compiled by the included asmdef, and discovered via `TypeCache` after domain reload. Supports `string`, `int`, `float`, and `bool` parameters with JSON marshaling.
+
+### Changed
+- Server startup instructions in `serve.go` now include guidance on `register_command` for domain-specific tasks that need to run more than once.
+
 ## [0.3.1] - 2026-08-11
 
 ### Added
@@ -95,6 +103,8 @@
 - Tags and layers: `tags_layers`, `tag_add`, `layer_add`
 - Build: `build`
 
+[0.5.0]: https://github.com/simonwittber/AgentBridge/compare/v0.3.1...v0.5.0
+[0.3.1]: https://github.com/simonwittber/AgentBridge/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/simonwittber/AgentBridge/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/simonwittber/AgentBridge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/simonwittber/AgentBridge/releases/tag/v0.1.0
