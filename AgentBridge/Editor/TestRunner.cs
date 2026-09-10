@@ -44,6 +44,62 @@ namespace LLMDevTools
         {
             var p = JsonUtility.FromJson<Params>(requestJson);
 
+            // Tests cannot start while the editor is playing.
+            // An edit-mode run never begins, and a play-mode run collides with the test runner driving play mode itself.
+            // Either way api.Execute returns without starting anything, so the listener never fires and the caller waits for a reply
+            // that will never come until it times out, leaving the editor wedged.
+            if (EditorApplication.isPlaying || EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                LeavePlayModeThen(uid, cmd, () => StartRun(uid, cmd, mode, p));
+                return null;
+            }
+
+            StartRun(uid, cmd, mode, p);
+            return null;
+        }
+
+        /// <summary>
+        /// Leaves play mode and runs the action once the editor is back in edit mode.
+        ///
+        /// Answers the caller itself if a domain reload interrupts the wait, because a command that never replies is the failure this
+        /// whole path exists to avoid.
+        /// </summary>
+        private static void LeavePlayModeThen(string uid, string cmd, Action run)
+        {
+            EditorApplication.playModeStateChanged += OnStateChanged;
+            AssemblyReloadEvents.beforeAssemblyReload += OnReload;
+
+            EditorApplication.ExitPlaymode();
+
+            void Detach()
+            {
+                EditorApplication.playModeStateChanged -= OnStateChanged;
+                AssemblyReloadEvents.beforeAssemblyReload -= OnReload;
+            }
+
+            void OnStateChanged(PlayModeStateChange change)
+            {
+                if (change != PlayModeStateChange.EnteredEditMode) return;
+
+                Detach();
+
+                // One tick later, so the editor has finished tearing play mode down before the run starts.
+                EditorApplication.delayCall += () => run();
+            }
+
+            void OnReload()
+            {
+                Detach();
+
+                var e = AgentBridge.MakeResponse(uid, cmd, "interrupted");
+                e["message"] = "Domain reload interrupted leaving play mode, so the tests did not run. Try again.";
+                AgentBridge.Respond(e);
+            }
+        }
+
+        /// <summary>Saves dirty scenes and starts the run. Only ever called in edit mode, which is what makes saving the scenes safe.</summary>
+        private static void StartRun(string uid, string cmd, TestMode mode, Params p)
+        {
             for (int i = 0; i < EditorSceneManager.sceneCount; i++)
             {
                 var s = EditorSceneManager.GetSceneAt(i);
@@ -74,7 +130,6 @@ namespace LLMDevTools
             }
 
             // async — Listener calls AgentBridge.Respond() when done
-            return null;
         }
 
         [Serializable]
