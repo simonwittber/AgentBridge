@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-10
+
+### Fixed
+- MCP tool handlers no longer return empty text content blocks. Anthropic's API rejects empty content, and LiteLLM masks the failure by substituting `[System: Empty message content sanitised to satisfy protocol]`. A new `toolResultJSON` helper marshals responses to indented JSON and substitutes an explicit success message when the output is empty, `null`, `{}`, or `[]`. All tool handlers route through it.
+- `TestRunner` now exits play mode before running tests. Previously a test run requested while the editor was playing never started, and the caller waited for a reply that never came, wedging the editor. If a domain reload interrupts leaving play mode, the caller receives an `interrupted` response instead of hanging.
+
 ## [0.5.0] - 2026-08-26
 
 ### Added
