@@ -86,8 +86,7 @@ func registerProjectTools(cfg Config, s *server.MCPServer) {
 		if err != nil {
 			return nil, fmt.Errorf("list_projects: %w", err)
 		}
-		out, _ := json.MarshalIndent(map[string]any{"projects": projects}, "", "  ")
-		return mcp.NewToolResultText(string(out)), nil
+		return toolResultJSON(map[string]any{"projects": projects}), nil
 	})
 
 	findTool := mcp.NewTool("find_unity_installs",
@@ -95,8 +94,7 @@ func registerProjectTools(cfg Config, s *server.MCPServer) {
 	)
 	s.AddTool(findTool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		installs := findUnityInstalls()
-		out, _ := json.MarshalIndent(map[string]any{"installs": installs}, "", "  ")
-		return mcp.NewToolResultText(string(out)), nil
+		return toolResultJSON(map[string]any{"installs": installs}), nil
 	})
 
 	createTool := mcp.NewTool("create_project",
@@ -121,12 +119,11 @@ func registerProjectTools(cfg Config, s *server.MCPServer) {
 			absPath, _ := filepath.Abs(path)
 			sessionFile := filepath.Join(absPath, "Temp", "agent", "session.json")
 			if info, err := os.Stat(sessionFile); err == nil && time.Since(info.ModTime()) < 15*time.Second {
-				out, _ := json.MarshalIndent(map[string]any{
+				return toolResultJSON(map[string]any{
 					"status":  "already_running",
 					"message": "Unity is already running with this project",
 					"path":    absPath,
-				}, "", "  ")
-				return mcp.NewToolResultText(string(out)), nil
+				}), nil
 			}
 		}
 		return launchUnityProject(cfg, args, "-projectPath", "Unity is opening the project")
@@ -141,12 +138,11 @@ func launchUnityProject(cfg Config, args map[string]any, flag, message string) (
 	unityExe, err := resolveUnityExe(cfg, args)
 	if err != nil {
 		if me, ok := err.(*multipleInstallsError); ok {
-			out, _ := json.MarshalIndent(map[string]any{
+			return toolResultJSON(map[string]any{
 				"status":            "choose_unity_version",
 				"message":           me.Error(),
 				"available_installs": me.installs,
-			}, "", "  ")
-			return mcp.NewToolResultText(string(out)), nil
+			}), nil
 		}
 		return nil, err
 	}
@@ -159,14 +155,13 @@ func launchUnityProject(cfg Config, args map[string]any, flag, message string) (
 		return nil, fmt.Errorf("failed to launch Unity: %w", err)
 	}
 	go cmd.Wait() //nolint:errcheck — detached process; Wait reaps the zombie on Unix
-	out, _ := json.MarshalIndent(map[string]any{
+	return toolResultJSON(map[string]any{
 		"status":     "ok",
 		"message":    message,
 		"path":       absPath,
 		"unity_path": unityExe,
 		"pid":        cmd.Process.Pid,
-	}, "", "  ")
-	return mcp.NewToolResultText(string(out)), nil
+	}), nil
 }
 
 func resolveUnityExe(cfg Config, args map[string]any) (string, error) {

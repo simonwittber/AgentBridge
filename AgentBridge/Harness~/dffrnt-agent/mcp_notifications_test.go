@@ -11,6 +11,9 @@ import (
 
 func TestMCP_AutoCompile_TriggeredByScriptWrite(t *testing.T) {
 	c := shared
+	if c == nil {
+		t.Skip("MCP server not available (Unity not running) — skipping integration test")
+	}
 
 	// Drain stale notifications left by earlier tests so we only see
 	// events that fire after the script write below.

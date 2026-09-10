@@ -39,6 +39,24 @@ func (s *serveState) getRawCmds() []any {
 	return s.rawCmds
 }
 
+// toolResultJSON marshals v to indented JSON and returns it as an MCP text
+// result. It guarantees the text block is never empty or whitespace-only:
+// Anthropic's API rejects empty text content blocks, and LiteLLM masks that by
+// substituting "[System: Empty message content sanitised to satisfy protocol]".
+// A nil/empty response, or a value that marshals to "" / "null" / "{}", is
+// replaced with an explicit success message so callers always see real content.
+func toolResultJSON(v any) *mcp.CallToolResult {
+	out, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf("{\n  \"status\": \"ok\",\n  \"note\": \"response could not be encoded: %s\"\n}", err.Error()))
+	}
+	switch strings.TrimSpace(string(out)) {
+	case "", "null", "{}", "[]":
+		return mcp.NewToolResultText("{\n  \"status\": \"ok\",\n  \"message\": \"command completed with no output\"\n}")
+	}
+	return mcp.NewToolResultText(string(out))
+}
+
 func (s *serveState) send(cmd string, args map[string]any) (map[string]any, error) {
 	cfg := s.getConfig()
 	if cfg.Project == defaultProject {
@@ -126,8 +144,7 @@ For one-off code execution, use execute_script directly.`),
 			result["commands_loaded"] = len(state.getRawCmds()) - len(staticCmds)
 			s.SendNotificationToAllClients(string(mcp.MethodNotificationToolsListChanged), nil)
 		}
-		out, _ := json.MarshalIndent(result, "", "  ")
-		return mcp.NewToolResultText(string(out)), nil
+		return toolResultJSON(result), nil
 	})
 
 	if cfg.Project != defaultProject {
@@ -149,8 +166,7 @@ For one-off code execution, use execute_script directly.`),
 			if len(cmds) <= len(staticCmds) {
 				payload["_warning"] = "Unity commands not loaded. Call set_project with the path to your Unity project root, then Unity commands will appear here."
 			}
-			out, _ := json.MarshalIndent(payload, "", "  ")
-			return mcp.NewToolResultText(string(out)), nil
+			return toolResultJSON(payload), nil
 		}
 		for _, raw := range state.getRawCmds() {
 			cmdMap, ok := raw.(map[string]any)
@@ -158,8 +174,7 @@ For one-off code execution, use execute_script directly.`),
 				continue
 			}
 			if cmdMap["cmd"] == name {
-				out, _ := json.MarshalIndent(cmdMap, "", "  ")
-				return mcp.NewToolResultText(string(out)), nil
+				return toolResultJSON(cmdMap), nil
 			}
 		}
 		return nil, fmt.Errorf("unknown command: %s", name)
@@ -248,8 +263,7 @@ func registerTools(state *serveState, s *server.MCPServer, cmds []any) {
 			if err != nil {
 				return nil, err
 			}
-			out, _ := json.MarshalIndent(resp, "", "  ")
-			return mcp.NewToolResultText(string(out)), nil
+			return toolResultJSON(resp), nil
 		})
 	}
 }

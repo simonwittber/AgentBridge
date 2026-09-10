@@ -43,7 +43,8 @@ func TestMain(m *testing.M) {
 	if binary == "" {
 		fmt.Fprintln(os.Stderr, "dffrnt-agent not found in current directory or PATH — skipping MCP integration tests")
 		fmt.Fprintln(os.Stderr, "Build it first: go build -o dffrnt-agent.exe .")
-		os.Exit(0)
+		// Still run non-integration unit tests (they skip when shared is nil).
+		os.Exit(m.Run())
 	}
 
 	project := os.Getenv("UNITY_PROJECT")
@@ -61,7 +62,7 @@ func TestMain(m *testing.M) {
 	data, err := os.ReadFile(filepath.Join(project, "Temp", "agent", "session.json"))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Unity not running (no session file) — skipping MCP integration tests")
-		os.Exit(0)
+		os.Exit(m.Run())
 	}
 	var session struct {
 		PID       int   `json:"pid"`
@@ -69,11 +70,11 @@ func TestMain(m *testing.M) {
 	}
 	if json.Unmarshal(data, &session) != nil || session.PID == 0 {
 		fmt.Fprintln(os.Stderr, "Unity not running (invalid session) — skipping MCP integration tests")
-		os.Exit(0)
+		os.Exit(m.Run())
 	}
 	if age := (time.Now().UnixMilli() - session.WrittenAt) / 1000; age > 60 {
 		fmt.Fprintf(os.Stderr, "Unity session stale (%ds) — skipping MCP integration tests\n", age)
-		os.Exit(0)
+		os.Exit(m.Run())
 	}
 
 	shared = launchMCPServer(binary, project)
@@ -172,6 +173,9 @@ func launchMCPServer(binary, project string) *mcpClient {
 
 func (c *mcpClient) call(t *testing.T, method string, params any) map[string]any {
 	t.Helper()
+	if c == nil {
+		t.Skip("MCP server not available (Unity not running) — skipping integration test")
+	}
 	id := c.nextID
 	c.nextID++
 
@@ -204,6 +208,9 @@ func (c *mcpClient) call(t *testing.T, method string, params any) map[string]any
 
 func (c *mcpClient) notify(t *testing.T, method string, params any) {
 	t.Helper()
+	if c == nil {
+		t.Skip("MCP server not available (Unity not running) — skipping integration test")
+	}
 	msg := map[string]any{"jsonrpc": "2.0", "method": method}
 	if params != nil {
 		msg["params"] = params
@@ -250,6 +257,9 @@ func testName(suffix string) string {
 // arrives on the client, or until timeout elapses.
 func (c *mcpClient) waitNotification(t *testing.T, method string, timeout time.Duration) map[string]any {
 	t.Helper()
+	if c == nil {
+		t.Skip("MCP server not available (Unity not running) — skipping integration test")
+	}
 	deadline := time.After(timeout)
 	for {
 		select {
@@ -268,6 +278,9 @@ func (c *mcpClient) waitNotification(t *testing.T, method string, timeout time.D
 // data.type equals eventType arrives, draining unrelated notifications.
 func (c *mcpClient) waitTypedNotification(t *testing.T, eventType string, timeout time.Duration) map[string]any {
 	t.Helper()
+	if c == nil {
+		t.Skip("MCP server not available (Unity not running) — skipping integration test")
+	}
 	deadline := time.After(timeout)
 	for {
 		select {
@@ -297,6 +310,9 @@ func (c *mcpClient) waitTypedNotification(t *testing.T, eventType string, timeou
 // Call this before starting a goroutine that waits for a specific notification
 // to prevent stale events from a previous test being picked up.
 func (c *mcpClient) drainNotifications() {
+	if c == nil {
+		return
+	}
 	for {
 		select {
 		case <-c.notifCh:
