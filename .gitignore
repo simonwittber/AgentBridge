@@ -37,6 +37,13 @@ AgentBridge/Harness~/dffrnt-agent/dffrnt-agent.exe
 *~
 *.un~
 
+# Harness~, Example~, Tests~ are real source dirs whose names end in ~
+# (the "~" suffix tells Unity to skip them on import). Re-include them so
+# the *~ backup-file rule above does not swallow them.
+!AgentBridge/Harness~/
+!AgentBridge/Example~/
+!AgentBridge/Tests~/
+
 # Claude Code
 .claude/
 
