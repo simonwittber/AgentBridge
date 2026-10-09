@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- `addToProject.ps1`: links the package into a Unity project's `Packages` folder as an embedded package, and adds the link to `.git/info/exclude` so it is never committed. Uses a symbolic link, or a directory junction when symlinks are not allowed.
+
 ## [0.5.1] - 2026-09-10
 
 ### Fixed
