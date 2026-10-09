@@ -59,12 +59,26 @@ func startNotificationWatcher(ctx context.Context, state *serveState, s *server.
 				s.SendNotificationToAllClients(
 					string(mcp.MethodNotificationMessage),
 					map[string]any{
-						"level":  level,
-						"logger": "unity-agentbridge",
-						"data":   payload,
+						"level":   level,
+						"logger":  "unity-agentbridge",
+						"message": notificationMessage(payload),
+						"data":    payload,
 					},
 				)
 			}
 		}
 	}()
+}
+
+// notificationMessage returns the human-readable text for a notification payload.
+// MCP clients that surface notifications as conversation content emit an empty content block without it.
+// Payloads from older AgentBridge versions have no message, so one is built from the type instead.
+func notificationMessage(payload map[string]any) string {
+	if msg, ok := payload["message"].(string); ok && msg != "" {
+		return msg
+	}
+	if notifType, ok := payload["type"].(string); ok && notifType != "" {
+		return "Unity notification: " + notifType
+	}
+	return "Unity notification"
 }

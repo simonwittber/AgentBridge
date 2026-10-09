@@ -5,6 +5,9 @@
 ### Added
 - `addToProject.ps1`: links the package into a Unity project's `Packages` folder as an embedded package, and adds the link to `.git/info/exclude` so it is never committed. Uses a symbolic link, or a directory junction when symlinks are not allowed.
 
+### Fixed
+- Notifications now carry a human-readable `message` field. Previously they shipped only a structured `data` payload, so MCP clients that surface `notifications/message` as conversation content could emit an empty content block, which Anthropic rejects and LiteLLM masks as `[System: Empty message content sanitised to satisfy protocol]`. `AgentBridge.Notify` (C#) synthesises the message from the notification type and key data fields, and the Go notification watcher lifts it to the top level with a fallback for older payloads.
+
 ## [0.5.1] - 2026-09-10
 
 ### Fixed

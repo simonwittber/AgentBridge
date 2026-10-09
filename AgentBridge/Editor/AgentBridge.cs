@@ -108,6 +108,7 @@ namespace LLMDevTools
                 var entry = new JsonObject
                 {
                     ["type"]       = type,
+                    ["message"]    = DescribeNotification(type, data),
                     ["data"]       = data,
                     ["written_at"] = ts,
                 };
@@ -118,6 +119,43 @@ namespace LLMDevTools
                     entry.ToJsonString());
             }
             catch { }
+        }
+
+        // Builds the human-readable text that MCP clients show for a notification.
+        // Clients that surface notifications as conversation content need non-empty text, and the structured data alone does not provide it.
+        internal static string DescribeNotification(string type, JsonObject data)
+        {
+            string Field(string key) => data?[key]?.ToString();
+
+            switch (type)
+            {
+                case "play_mode_entered": return "Unity entered play mode.";
+                case "play_mode_exited":  return "Unity exited play mode.";
+                case "compile_started":   return "Script compilation started.";
+                case "refresh_started":   return "Asset refresh started.";
+                case "refresh_finished":  return "Asset refresh finished.";
+                case "script_started":    return "Script started.";
+                case "script_completed":  return "Script completed.";
+                case "script_failed":     return $"Script failed: {Field("message")}";
+                case "scene_opened":      return $"Scene '{Field("name")}' opened ({Field("path")}, {Field("mode")}).";
+                case "compile_finished":
+                    return Field("error_count") is { } count && count != "0"
+                        ? $"Script compilation finished with {count} error(s)."
+                        : "Script compilation finished with no errors.";
+                case "compile_failure":
+                {
+                    var errors  = data?["errors"] as JsonArray;
+                    var first   = errors?.Count > 0 ? errors[0] : null;
+                    var summary = $"Script compilation failed with {errors?.Count ?? 0} error(s).";
+                    return first == null ? summary : $"{summary} First: {first["file"]}({first["line"]},{first["column"]}): {first["text"]}";
+                }
+                case "screenshot_ready":
+                    return Field("error") is { } error
+                        ? $"Screenshot failed: {error}"
+                        : $"Screenshot saved to {Field("path")} ({Field("width")}x{Field("height")}).";
+                default:
+                    return $"Unity notification: {type}.";
+            }
         }
 
         public static void Register(IAgentCommand handler) => _handlers[handler.Cmd] = handler;
