@@ -9,6 +9,9 @@ using UnityEngine.SceneManagement;
 
 namespace LLMDevTools
 {
+#if UNITY_7000_0_OR_NEWER
+    [Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanup]
+#endif
     public static class SceneBridge
     {
         internal static GameObject FindByPath(string path)

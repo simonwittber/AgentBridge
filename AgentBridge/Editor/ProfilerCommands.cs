@@ -5,6 +5,9 @@ using UnityEngine;
 
 namespace LLMDevTools
 {
+#if UNITY_7000_0_OR_NEWER
+    [Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanup]
+#endif
     internal static class ProfilerCommands
     {
         static readonly Dictionary<string, ProfilerRecorder> s_recorders = new();

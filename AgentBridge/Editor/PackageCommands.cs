@@ -8,6 +8,9 @@ using UnityEngine;
 namespace LLMDevTools
 {
     [InitializeOnLoad]
+#if UNITY_7000_0_OR_NEWER
+    [Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanup]
+#endif
     internal static class PackageCommands
     {
         private static Request _pending;

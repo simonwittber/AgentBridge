@@ -6,6 +6,8 @@
 - `addToProject.ps1`: copies the package into a Unity project's `Packages` folder as an embedded package (re-running resyncs a stale copy), and adds the copy to `.git/info/exclude` so it is never committed.
 
 ### Fixed
+- `execute_script` now works in Unity 7000.x as well as 6000.x. Unity 7000 moved `dotnet` from `Data/NetCoreRuntime` to `Data/DotNetSdk`, so `FindDotnet()` checks both folders. Unity 7000 also loads engine and project assemblies into its own load context, so the script's collectible load context now resolves missing references to the already-loaded assembly of the same name.
+- Unity 7000.x no longer reports UAL0010/UAL0013 warnings for AgentBridge's static fields. The affected classes carry `[NoAutoStaticsCleanup]` behind `#if UNITY_7000_0_OR_NEWER`, which keeps their current behaviour.
 - Notifications now carry a human-readable `message` field. Previously they shipped only a structured `data` payload, so MCP clients that surface `notifications/message` as conversation content could emit an empty content block, which Anthropic rejects and LiteLLM masks as `[System: Empty message content sanitised to satisfy protocol]`. `AgentBridge.Notify` (C#) synthesises the message from the notification type and key data fields, and the Go notification watcher lifts it to the top level with a fallback for older payloads.
 
 ## [0.5.1] - 2026-09-10

@@ -21,9 +21,14 @@ namespace LLMDevTools
     {
         internal static string FindDotnet()
         {
-            var exe  = Application.platform == RuntimePlatform.WindowsEditor ? "dotnet.exe" : "dotnet";
-            var path = Path.Combine(EditorApplication.applicationContentsPath, "NetCoreRuntime", exe);
-            return File.Exists(path) ? path : null;
+            // Unity 6000.x ships dotnet in NetCoreRuntime; Unity 7000.x moved it into DotNetSdk.
+            var exe = Application.platform == RuntimePlatform.WindowsEditor ? "dotnet.exe" : "dotnet";
+            foreach (var folder in new[] { "NetCoreRuntime", "DotNetSdk" })
+            {
+                var path = Path.Combine(EditorApplication.applicationContentsPath, folder, exe);
+                if (File.Exists(path)) return path;
+            }
+            return null;
         }
 
         internal static string FindCsc()
@@ -162,6 +167,9 @@ namespace LLMDevTools
 
         // Wraps AssemblyLoadContext via reflection so the asmdef needs no extra reference.
         // Falls back to Assembly.Load if the type is unavailable.
+#if UNITY_7000_0_OR_NEWER
+        [Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanup]
+#endif
         internal static class CollectibleLoader
         {
             static readonly Type      _alcTypeFull  = Type.GetType("System.Runtime.Loader.AssemblyLoadContext, System.Runtime.Loader")
@@ -170,6 +178,7 @@ namespace LLMDevTools
             static readonly MethodInfo _loadStream2 = _alcTypeFull?.GetMethod("LoadFromStream", new[] { typeof(Stream), typeof(Stream) });
             static readonly MethodInfo _getCtx      = _alcTypeFull?.GetMethod("GetLoadContext", BindingFlags.Public | BindingFlags.Static);
             static readonly MethodInfo _unload      = _alcTypeFull?.GetMethod("Unload");
+            static readonly EventInfo  _resolving   = _alcTypeFull?.GetEvent("Resolving");
 
             internal static Assembly Load(byte[] bytes, byte[] pdbBytes = null)
             {
@@ -183,9 +192,31 @@ namespace LLMDevTools
 #pragma warning restore UAC0020
                 }
                 var alc = ctor.Invoke(new object[] { "AgentBridgeScript", true });
+                AttachResolver(alc);
                 if (pdbBytes != null && _loadStream2 != null)
                     return (Assembly)_loadStream2.Invoke(alc, new object[] { new MemoryStream(bytes), new MemoryStream(pdbBytes) });
                 return (Assembly)_loadStream.Invoke(alc, new object[] { new MemoryStream(bytes) });
+            }
+
+            // Unity 7000.x loads engine and project assemblies into its own load context, not the default one.
+            // The script's load context cannot find them by itself, so hand back the already-loaded assembly with the same name.
+            static void AttachResolver(object alc)
+            {
+                if (_resolving == null) return;
+                var method = typeof(CollectibleLoader).GetMethod(nameof(ResolveLoaded), BindingFlags.NonPublic | BindingFlags.Static);
+                _resolving.AddEventHandler(alc, Delegate.CreateDelegate(_resolving.EventHandlerType, method));
+            }
+
+            static Assembly ResolveLoaded(object alc, AssemblyName name)
+            {
+#pragma warning disable UAC0005
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (string.Equals(asm.GetName().Name, name.Name, StringComparison.OrdinalIgnoreCase))
+                        return asm;
+                }
+#pragma warning restore UAC0005
+                return null;
             }
 
             internal static void Unload(Assembly asm)
