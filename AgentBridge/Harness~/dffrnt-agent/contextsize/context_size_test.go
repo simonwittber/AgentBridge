@@ -27,7 +27,6 @@ var fixedTools = []mcpTool{
 		InputSchema: mcpInputSchema{
 			Type: "object",
 			Properties: map[string]mcpProperty{
-				"path":     {Type: "string"},
 				"width":    {Type: "number"},
 				"height":   {Type: "number"},
 				"max_size": {Type: "number"},

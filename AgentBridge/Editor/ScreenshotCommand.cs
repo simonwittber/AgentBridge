@@ -9,12 +9,13 @@ namespace LLMDevTools
     internal sealed class ScreenshotCmd : IAgentCommand
     {
         public string    Cmd         => "screenshot";
-        public string    Description => "Capture the current view to a PNG. Returns immediately and fires a screenshot_ready notification with the file path when done.";
+        public string    Description => "Capture the current view to a PNG under Temp/agent/screenshots/. Returns the absolute file path immediately and fires a screenshot_ready notification when the file is written.";
         public ArgSpec[] Args        => new[]
         {
-            new ArgSpec("path",     "string", "", "Output path. Defaults to Temp/agent/screenshot.png"),
-            new ArgSpec("max_size", "int",    "0", "Downscale so the longest edge is at most this many pixels"),
+            new ArgSpec("max_size", "int", "0", "Downscale so the longest edge is at most this many pixels"),
         };
+
+        private const string ScreenshotDir = "Temp/agent/screenshots";
 
         private string _pendingPath;
         private int    _pendingMaxSize;
@@ -31,15 +32,16 @@ namespace LLMDevTools
                 return err;
             }
 
-            _pendingPath    = string.IsNullOrEmpty(p.path) ? "Temp/agent/screenshot.png" : p.path;
-            _pendingMaxSize = p.max_size;
-
-            if (!PathUtils.IsAllowedWritePath(_pendingPath))
+            // The output path is always chosen here, because Unity refuses to write outside certain folders.
+            if (!string.IsNullOrEmpty(p.path))
             {
                 var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                err["message"] = $"Path '{_pendingPath}' is outside allowed write locations (Assets/ or Temp/)";
+                err["message"] = "The 'path' argument was removed. The screenshot path is generated and returned in the response.";
                 return err;
             }
+
+            _pendingPath    = UniqueScreenshotPath(uid);
+            _pendingMaxSize = p.max_size;
 
             if (Application.isPlaying)
             {
@@ -57,8 +59,12 @@ namespace LLMDevTools
             }
 
             var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
+            resp["path"] = _pendingPath;
             return resp;
         }
+
+        private static string UniqueScreenshotPath(string uid) =>
+            Path.GetFullPath(Path.Combine(ScreenshotDir, $"{System.DateTime.UtcNow:yyyyMMdd-HHmmss-fff}-{uid}.png"));
 
         // Edit mode: no player loop, so render the scene view camera synchronously.
         private static void CaptureEditMode(string outPath, int maxSize)

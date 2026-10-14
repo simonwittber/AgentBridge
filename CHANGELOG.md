@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- `screenshot` no longer accepts a `path` argument, because Unity refuses to write outside certain folders. Each capture is saved to a unique file under `Temp/agent/screenshots/`, and the absolute path is returned in the response as well as the `screenshot_ready` notification. Passing `path` returns an error.
+
 ### Added
 - `addToProject.ps1`: copies the package into a Unity project's `Packages` folder as an embedded package (re-running resyncs a stale copy), and adds the copy to `.git/info/exclude` so it is never committed.
 

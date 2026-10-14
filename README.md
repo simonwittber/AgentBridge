@@ -161,7 +161,7 @@ Expected output:
 | `menu_item` | Invoke a Unity menu item by path |
 | `run_editor_tests` | Run edit-mode tests; returns pass/fail/skip |
 | `run_playmode_tests` | Run play-mode tests; returns pass/fail/skip |
-| `screenshot` | Capture the current view to PNG; returns immediately and fires a `screenshot_ready` notification with the file path |
+| `screenshot` | Capture the current view to a PNG under `Temp/agent/screenshots/`; returns the absolute file path immediately and fires a `screenshot_ready` notification when the file is written. The path cannot be chosen. |
 | `execute_script` | Compile and run a C# snippet in the Editor |
 | `selection_get` | Return the currently selected GameObjects and assets |
 | `undo` | Perform an undo operation |
