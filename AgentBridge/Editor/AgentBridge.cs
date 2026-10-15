@@ -152,10 +152,6 @@ namespace LLMDevTools
                     var summary = $"Script compilation failed with {errors?.Count ?? 0} error(s).";
                     return first == null ? summary : $"{summary} First: {first["file"]}({first["line"]},{first["column"]}): {first["text"]}";
                 }
-                case "screenshot_ready":
-                    return Field("error") is { } error
-                        ? $"Screenshot failed: {error}"
-                        : $"Screenshot saved to {Field("path")} ({Field("width")}x{Field("height")}).";
                 default:
                     return $"Unity notification: {type}.";
             }

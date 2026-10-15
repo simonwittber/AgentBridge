@@ -161,7 +161,7 @@ Expected output:
 | `menu_item` | Invoke a Unity menu item by path |
 | `run_editor_tests` | Run edit-mode tests; returns pass/fail/skip |
 | `run_playmode_tests` | Run play-mode tests; returns pass/fail/skip |
-| `screenshot` | Capture the current view to a PNG under `Temp/agent/screenshots/`; returns the absolute file path immediately and fires a `screenshot_ready` notification when the file is written. The path cannot be chosen. |
+| `screenshot` | Capture the current view to a PNG under `Temp/agent/screenshots/`; returns the absolute file path, width and height once the file is written. The path cannot be chosen. Fails if play mode is paused. |
 | `execute_script` | Compile and run a C# snippet in the Editor |
 | `selection_get` | Return the currently selected GameObjects and assets |
 | `undo` | Perform an undo operation |
@@ -292,7 +292,7 @@ Example notification file:
 {"type":"compile_finished","data":{"error_count":0},"written_at":1749123456789}
 ```
 
-Event types: `compile_started`, `compile_finished`, `compile_failure`, `refresh_started`, `refresh_finished`, `play_mode_entered`, `play_mode_exited`, `scene_opened`, `screenshot_ready`.
+Event types: `compile_started`, `compile_finished`, `compile_failure`, `refresh_started`, `refresh_finished`, `play_mode_entered`, `play_mode_exited`, `scene_opened`.
 
 Commands that trigger async state changes note their notifications in the tool description.
 

@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestMCP_ConsoleLogs(t *testing.T) {
@@ -213,8 +212,10 @@ func TestMCP_Screenshot(t *testing.T) {
 	if !strings.Contains(filepath.ToSlash(respPath), "Temp/agent/screenshots/") {
 		t.Errorf("expected path under Temp/agent/screenshots/, got %q", respPath)
 	}
-	// Wait for the async capture to finish before the next test can call screenshot.
-	c.waitTypedNotification(t, "screenshot_ready", 10*time.Second)
+	// The response is only sent once the file has been written.
+	if _, err := os.Stat(respPath); err != nil {
+		t.Errorf("screenshot file missing when response arrived: %v", err)
+	}
 }
 
 func TestMCP_Screenshot_PathArgumentRejected(t *testing.T) {
@@ -233,17 +234,9 @@ func TestMCP_Screenshot_MaxSize(t *testing.T) {
 	if p["status"] != "ok" {
 		t.Fatalf("screenshot failed: %v", p)
 	}
-	respPath, _ := p["path"].(string)
-	n := c.waitTypedNotification(t, "screenshot_ready", 10*time.Second)
-	params, _ := n["params"].(map[string]any)
-	outer, _ := params["data"].(map[string]any)
-	inner, _ := outer["data"].(map[string]any)
-	filePath, _ := inner["path"].(string)
+	filePath, _ := p["path"].(string)
 	if filePath == "" {
-		t.Fatal("missing path in screenshot_ready notification")
-	}
-	if filePath != respPath {
-		t.Errorf("notification path %q does not match response path %q", filePath, respPath)
+		t.Fatal("missing path in screenshot response")
 	}
 	raw, err := os.ReadFile(filePath)
 	if err != nil {

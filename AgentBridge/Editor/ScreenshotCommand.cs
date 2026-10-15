@@ -9,7 +9,7 @@ namespace LLMDevTools
     internal sealed class ScreenshotCmd : IAgentCommand
     {
         public string    Cmd         => "screenshot";
-        public string    Description => "Capture the current view to a PNG under Temp/agent/screenshots/. Returns the absolute file path immediately and fires a screenshot_ready notification when the file is written.";
+        public string    Description => "Capture the current view to a PNG under Temp/agent/screenshots/. Returns the absolute file path, width and height once the file has been written. Fails if play mode is paused.";
         public ArgSpec[] Args        => new[]
         {
             new ArgSpec("max_size", "int", "0", "Downscale so the longest edge is at most this many pixels"),
@@ -17,57 +17,53 @@ namespace LLMDevTools
 
         private const string ScreenshotDir = "Temp/agent/screenshots";
 
-        private string _pendingPath;
-        private int    _pendingMaxSize;
-        private bool   _busy;
-
         public JsonObject Execute(string uid, string requestJson)
         {
             var p = JsonUtility.FromJson<Params>(requestJson);
 
-            if (_busy)
-            {
-                var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                err["message"] = "Screenshot capture already in progress";
-                return err;
-            }
-
             // The output path is always chosen here, because Unity refuses to write outside certain folders.
             if (!string.IsNullOrEmpty(p.path))
-            {
-                var err = AgentBridge.MakeResponse(uid, Cmd, "error");
-                err["message"] = "The 'path' argument was removed. The screenshot path is generated and returned in the response.";
-                return err;
-            }
+                return Error(uid, "The 'path' argument was removed. The screenshot path is generated and returned in the response.");
 
-            _pendingPath    = UniqueScreenshotPath(uid);
-            _pendingMaxSize = p.max_size;
+            var path = UniqueScreenshotPath(uid);
 
-            if (Application.isPlaying)
-            {
-                _busy = true;
-                var go = new GameObject("__AgentScreenshot");
-                Object.DontDestroyOnLoad(go);
-                var helper = go.AddComponent<CaptureHelper>();
-                helper.PendingPath    = _pendingPath;
-                helper.PendingMaxSize = _pendingMaxSize;
-                helper.OnComplete     = () => _busy = false;
-            }
-            else
-            {
-                CaptureEditMode(_pendingPath, _pendingMaxSize);
-            }
+            if (!Application.isPlaying)
+                return CaptureEditMode(uid, path, p.max_size);
 
-            var resp = AgentBridge.MakeResponse(uid, Cmd, "ok");
-            resp["path"] = _pendingPath;
-            return resp;
+            // The capture waits for the end of a frame, which never comes while play mode is paused.
+            if (EditorApplication.isPaused)
+                return Error(uid, "Cannot capture a screenshot while play mode is paused");
+
+            var go = new GameObject("__AgentScreenshot");
+            Object.DontDestroyOnLoad(go);
+            var helper = go.AddComponent<CaptureHelper>();
+            helper.Uid            = uid;
+            helper.PendingPath    = path;
+            helper.PendingMaxSize = p.max_size;
+            return null; // async: CaptureHelper calls Respond() once the file is written
         }
 
         private static string UniqueScreenshotPath(string uid) =>
             Path.GetFullPath(Path.Combine(ScreenshotDir, $"{System.DateTime.UtcNow:yyyyMMdd-HHmmss-fff}-{uid}.png"));
 
+        private static JsonObject Error(string uid, string message)
+        {
+            var err = AgentBridge.MakeResponse(uid, "screenshot", "error");
+            err["message"] = message;
+            return err;
+        }
+
+        private static JsonObject Saved(string uid, string path, int width, int height)
+        {
+            var resp = AgentBridge.MakeResponse(uid, "screenshot", "ok");
+            resp["path"]   = path;
+            resp["width"]  = width;
+            resp["height"] = height;
+            return resp;
+        }
+
         // Edit mode: no player loop, so render the scene view camera synchronously.
-        private static void CaptureEditMode(string outPath, int maxSize)
+        private static JsonObject CaptureEditMode(string uid, string outPath, int maxSize)
         {
             Camera cam = null;
             if (SceneView.lastActiveSceneView != null)
@@ -76,10 +72,7 @@ namespace LLMDevTools
                 cam = Object.FindAnyObjectByType<Camera>();
 
             if (cam == null)
-            {
-                AgentBridge.Notify("screenshot_ready", new JsonObject { ["error"] = "No camera found in scene" });
-                return;
-            }
+                return Error(uid, "No camera found in scene");
 
             int w = Mathf.Max(1, cam.pixelWidth);
             int h = Mathf.Max(1, cam.pixelHeight);
@@ -115,20 +108,17 @@ namespace LLMDevTools
                 Object.DestroyImmediate(tex);
             }
 
-            AgentBridge.Notify("screenshot_ready", new JsonObject
-            {
-                ["path"]   = fullPath,
-                ["width"]  = w,
-                ["height"] = h,
-            });
+            return Saved(uid, fullPath, w, h);
         }
 
         // Play mode: coroutine waits for end of frame then uses ScreenCapture API.
         private class CaptureHelper : MonoBehaviour
         {
-            public string         PendingPath;
-            public int            PendingMaxSize;
-            public System.Action  OnComplete;
+            public string Uid;
+            public string PendingPath;
+            public int    PendingMaxSize;
+
+            private bool _responded;
 
             private IEnumerator Start()
             {
@@ -137,8 +127,7 @@ namespace LLMDevTools
                 var tex = ScreenCapture.CaptureScreenshotAsTexture();
                 if (tex == null)
                 {
-                    AgentBridge.Notify("screenshot_ready", new JsonObject { ["error"] = "CaptureScreenshotAsTexture returned null" });
-                    Done();
+                    Finish(Error(Uid, "CaptureScreenshotAsTexture returned null"));
                     yield break;
                 }
 
@@ -165,30 +154,39 @@ namespace LLMDevTools
                 }
 
                 var fullPath = Path.GetFullPath(PendingPath);
+                JsonObject resp;
                 try
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
                     File.WriteAllBytes(fullPath, tex.EncodeToPNG());
+                    resp = Saved(Uid, fullPath, w, h);
+                }
+                catch (System.Exception ex)
+                {
+                    resp = Error(Uid, ex.Message);
                 }
                 finally
                 {
                     Destroy(tex);
                 }
 
-                AgentBridge.Notify("screenshot_ready", new JsonObject
-                {
-                    ["path"]   = fullPath,
-                    ["width"]  = w,
-                    ["height"] = h,
-                });
-
-                Done();
+                Finish(resp);
             }
 
-            private void Done()
+            private void Finish(JsonObject resp)
             {
-                OnComplete?.Invoke();
+                if (_responded) return;
+                _responded = true;
+                AgentBridge.Respond(resp);
                 Destroy(gameObject);
+            }
+
+            // Leaving play mode destroys this object before the capture runs, so reply instead of leaving the bridge busy.
+            private void OnDestroy()
+            {
+                if (_responded) return;
+                _responded = true;
+                AgentBridge.Respond(Error(Uid, "Play mode ended before the screenshot was captured"));
             }
         }
 
