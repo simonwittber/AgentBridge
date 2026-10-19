@@ -209,6 +209,8 @@ namespace LLMDevTools
                 catch { }
             }
 
+            ToolCounts.Init(_handlers.Keys);
+
             try
             {
                 Directory.CreateDirectory(RequestsDir);
@@ -504,6 +506,9 @@ namespace LLMDevTools
                     File.WriteAllText(Path.Combine(ResponsesDir, uid + ".json"), resp.ToJsonString());
                     if (_pendingFile != null && File.Exists(_pendingFile)) SafeDelete(_pendingFile);
                     AppendLog(BuildLogEntry(resp));
+                    // Count here so each request is counted once, even if it was replayed after a compile, refresh, or reload.
+                    // Test calls never set _pendingUid, so they are not counted.
+                    if (uid == _pendingUid) ToolCounts.Increment(resp["cmd"]?.GetValue<string>());
                 }
             }
             catch (IOException) { }
