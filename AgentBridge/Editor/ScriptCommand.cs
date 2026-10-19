@@ -237,10 +237,10 @@ namespace LLMDevTools
         private sealed class ExecuteScriptCmd : IAgentCommand
         {
             public string    Cmd         => "execute_script";
-            public string    Description => "Compile and run a C# snippet in the Unity Editor context. The code body is placed inside a static Run() method with access to UnityEngine and UnityEditor. Return a string or leave void.";
+            public string    Description => "Compile and run a C# snippet in the Unity Editor context. The code body is placed inside a static Run() method with access to UnityEngine and UnityEditor. Do not add 'using' directives: they will not compile inside a method body. Use fully qualified type names instead (e.g. System.IO.File). Return a string or leave void.";
             public ArgSpec[] Args        => new[]
             {
-                new ArgSpec("code", "string", "", "C# statements to execute inside the Run() method body."),
+                new ArgSpec("code", "string", "", "C# statements to execute inside the Run() method body. No 'using' directives; use fully qualified type names."),
             };
 
             public JsonObject Execute(string uid, string requestJson)
